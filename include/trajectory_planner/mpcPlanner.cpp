@@ -449,17 +449,21 @@ namespace trajPlanner{
 			}
 		}
 
+		ros::Time solverStartTime = ros::Time::now();
 		for (int iter =0;iter<NUM_STEPS;++iter){
 			/* Perform the feedback step. */
 			errorMessage = acado_feedbackStep( );
-			
+			ros::Time currentTime = ros::Time::now();
+
 			if (acado_getKKT() <= 1e-6 && iter != 0){
+				break;
+			}			
+			else if ((currentTime-solverStartTime).toSec()>=0.08){
 				break;
 			}
 
 			/* Prepare for the next step. */
 			acado_preparationStep();
-			
 		}
 
 		if ((errorMessage == 0)|| this->firstTime_){

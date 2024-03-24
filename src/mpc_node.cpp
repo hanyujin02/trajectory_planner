@@ -164,57 +164,64 @@ int main(int argc, char** argv){
 			mp->updateDynamicObstacles(obg->getObstaclePos(), obg->getObstacleVel(), obg->getObstacleSize());
 			mp->updateCurrStates(currPos, currVel);
 			
-			std::mutex m;
-			std::condition_variable cv;
+			// std::mutex m;
+			// std::condition_variable cv;
 			bool planSuccess;
+			planSuccess = mp->makePlanCG();
+			ros::Time mpcEndTime = ros::Time::now();
+			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			currPos = mp->getPos(dt);
+			currVel = mp->getVel(dt);
+			t += dt;
+			ros::spinOnce();
+			r.sleep();
+			// if (not firstTime){
+			// 	std::thread check([&cv, &planSuccess, &mp]() 
+			// 	{
+			// 		// retValue = mp->makePlan();
+			// 		planSuccess = mp->makePlanCG();
+			// 		cv.notify_one();
+			// 	});
 
-			if (not firstTime){
-				std::thread check([&cv, &planSuccess, &mp]() 
-				{
-					// retValue = mp->makePlan();
-					planSuccess = mp->makePlanCG();
-					cv.notify_one();
-				});
+			// 	check.detach();
 
-				check.detach();
-
-				{
-					std::unique_lock<std::mutex> l(m);
-					if(cv.wait_for(l, 0.08s) >= std::cv_status::timeout){ 
-						// ros::Time mpcEndTime = ros::Time::now();
-						// cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-						currPos = mp->getPos(dt);
-						currVel = mp->getVel(dt);
-						t+=dt;
-						ros::Time mpcEndTime = ros::Time::now();
-						cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			// 	{
+			// 		std::unique_lock<std::mutex> l(m);
+			// 		if(cv.wait_for(l, 0.08s) >= std::cv_status::timeout){ 
+			// 			// ros::Time mpcEndTime = ros::Time::now();
+			// 			// cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			// 			currPos = mp->getPos(dt);
+			// 			currVel = mp->getVel(dt);
+			// 			t+=dt;
+			// 			ros::Time mpcEndTime = ros::Time::now();
+			// 			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
 						
-						// ros::spinOnce();
-						// r.sleep();
-						continue;
-					}
+			// 			// ros::spinOnce();
+			// 			// r.sleep();
+			// 			continue;
+			// 		}
 
-					ros::Time mpcEndTime = ros::Time::now();
-					cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-					currPos = mp->getPos(dt);
-					currVel = mp->getVel(dt);
-					t += dt;
-					ros::spinOnce();
-					r.sleep();
-				}
-			}
-			else{
-				// retValue = mp->makePlan();
-				planSuccess = mp->makePlanCG();
-				ros::Time mpcEndTime = ros::Time::now();
-				cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-				currPos = mp->getPos(dt);
-				currVel = mp->getVel(dt);
-				t += dt;
-				firstTime = false;
-				ros::spinOnce();
-				r.sleep();
-			}
+			// 		ros::Time mpcEndTime = ros::Time::now();
+			// 		cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			// 		currPos = mp->getPos(dt);
+			// 		currVel = mp->getVel(dt);
+			// 		t += dt;
+			// 		ros::spinOnce();
+			// 		r.sleep();
+			// 	}
+			// }
+			// else{
+			// 	// retValue = mp->makePlan();
+			// 	planSuccess = mp->makePlanCG();
+			// 	ros::Time mpcEndTime = ros::Time::now();
+			// 	cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			// 	currPos = mp->getPos(dt);
+			// 	currVel = mp->getVel(dt);
+			// 	t += dt;
+			// 	firstTime = false;
+			// 	ros::spinOnce();
+			// 	r.sleep();
+			// }
 				// continue;
 			// }
 		}
