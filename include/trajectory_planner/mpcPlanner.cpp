@@ -458,15 +458,16 @@ namespace trajPlanner{
 			if (acado_getKKT() <= 1e-6 && iter != 0){
 				break;
 			}			
-			else if ((currentTime-solverStartTime).toSec()>=0.08){
+			else if ((currentTime-solverStartTime).toSec()>=0.08 and not this->firstTime_){
 				break;
 			}
-
+			else if (errorMessage == 33){//when qp problem is infeasible
+				break;
+			}
 			/* Prepare for the next step. */
 			acado_preparationStep();
 		}
-
-		if ((errorMessage == 0)|| this->firstTime_){
+		if ((errorMessage == 0)){
 			if (this->currentStatesSol_.isEmpty()){
 				for (int i = 0; i<ACADO_N+1; i++){
 					DVector xi(ACADO_NX-1);
@@ -502,7 +503,7 @@ namespace trajPlanner{
 			this->firstTime_ = false;
 			return true;
 		}
-		else{	
+		else{
 			printf(acado_getErrorString(errorMessage));	
 			printf("\n");
 			return false;
@@ -584,27 +585,62 @@ namespace trajPlanner{
 	}
 
 	Eigen::Vector3d mpcPlanner::getPos(double t){
-		int idx = int(t/this->ts_);
+		// int idx = int(t/this->ts_);
+		// idx = std::max(0, std::min(idx, this->horizon_-1));
+		// DVector states = this->currentStatesSol_.getVector(idx);
+		// Eigen::Vector3d p (states(0), states(1), states(2));
+		int idx = floor(t/this->ts_);
+		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
 		DVector states = this->currentStatesSol_.getVector(idx);
-		Eigen::Vector3d p (states(0), states(1), states(2));
+		DVector nextStates = this->currentStatesSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::Vector3d p;
+		p(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
+		p(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
+		p(2) = states(2)+(nextStates(2)-states(2))/this->ts_*dt;
 		return p;
 	}
 
 	Eigen::Vector3d mpcPlanner::getVel(double t){
-		int idx = int(t/this->ts_);
+		// int idx = int(t/this->ts_);
+		// idx = std::max(0, std::min(idx, this->horizon_-1));
+		// DVector states = this->currentStatesSol_.getVector(idx);
+		// Eigen::Vector3d v (states(3), states(4), states(5));
+		int idx = floor(t/this->ts_);
+		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
 		DVector states = this->currentStatesSol_.getVector(idx);
-		Eigen::Vector3d v (states(3), states(4), states(5));
+		DVector nextStates = this->currentStatesSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::Vector3d v;
+		v(0) = states(3)+(nextStates(3)-states(3))/this->ts_*dt;
+		v(1) = states(4)+(nextStates(4)-states(4))/this->ts_*dt;
+		v(2) = states(5)+(nextStates(5)-states(5))/this->ts_*dt;
 		return v;
 	}
 
 	Eigen::Vector3d mpcPlanner::getAcc(double t){
-		int idx = int(t/this->ts_);
+		// int idx = int(t/this->ts_);
+		// idx = std::max(0, std::min(idx, this->horizon_-1));
+		// DVector states = this->currentControlsSol_.getVector(idx);
+		// Eigen::Vector3d a (states(0), states(1), states(2));
+		int idx = floor(t/this->ts_);
+		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
 		DVector states = this->currentControlsSol_.getVector(idx);
-		Eigen::Vector3d a (states(0), states(1), states(2));
+		DVector nextStates = this->currentControlsSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::Vector3d a;
+		a(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
+		a(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
+		a(2) = states(2)+(nextStates(2)-states(2))/this->ts_*dt;
 		return a;
+	}
+
+	double mpcPlanner::getTs(){
+		return this->ts_;
+	}
+
+	double mpcPlanner::getHorizon(){
+		return this->horizon_;
 	}
 
 	void mpcPlanner::visCB(const ros::TimerEvent&){

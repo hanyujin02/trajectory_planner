@@ -108,6 +108,8 @@ namespace trajPlanner{
 		Eigen::Vector3d getPos(double t);
 		Eigen::Vector3d getVel(double t);
 		Eigen::Vector3d getAcc(double t);
+		double getTs();
+		double getHorizon();
 
 		void visCB(const ros::TimerEvent&);
 		void publishMPCTrajectory();
