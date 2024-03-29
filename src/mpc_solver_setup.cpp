@@ -274,7 +274,7 @@ int main( )
 
 
 	mpc.set( QP_SOLVER,                   QP_QPOASES      );
-	mpc.set( MAX_NUM_QP_ITERATIONS, 		 80		   	);
+	mpc.set( MAX_NUM_QP_ITERATIONS, 		 60		   	);
 	mpc.set( HOTSTART_QP,                 YES         );
 // 	mpc.set( LEVENBERG_MARQUARDT,         1.0e-4          );
 	mpc.set( GENERATE_TEST_FILE,          BT_FALSE             );
