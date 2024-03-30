@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const int NOISE = -2;
+const int DBSCAN_NOISE = -2;
 const int NOT_CLASSIFIED = -1;
 
 class Point {
@@ -62,13 +62,13 @@ public:
             if(isCoreObject(i)) {
                 dfs(i, ++clusterIdx);
             } else {
-                points[i].cluster = NOISE;
+                points[i].cluster = DBSCAN_NOISE;
             }
         }
         
         cluster.resize(clusterIdx+1);
         for(int i=0;i<this->size;i++) {
-            if(points[i].cluster != NOISE) {
+            if(points[i].cluster != DBSCAN_NOISE) {
                 cluster[points[i].cluster].push_back(i);
             }
         }
