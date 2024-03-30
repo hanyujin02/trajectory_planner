@@ -230,139 +230,139 @@ namespace trajPlanner{
 	}
 
 
-	bool mpcPlanner::makePlan(){
-		std::ostringstream local;
-		auto cout_buff = std::cout.rdbuf();
-		std::cout.rdbuf(local.rdbuf());
-		// States
-		DifferentialState x;
-		DifferentialState y;
-		DifferentialState z;
-		DifferentialState vx;
-		DifferentialState vy;
-		DifferentialState vz;	
+	// bool mpcPlanner::makePlan(){
+	// 	std::ostringstream local;
+	// 	auto cout_buff = std::cout.rdbuf();
+	// 	std::cout.rdbuf(local.rdbuf());
+	// 	// States
+	// 	DifferentialState x;
+	// 	DifferentialState y;
+	// 	DifferentialState z;
+	// 	DifferentialState vx;
+	// 	DifferentialState vy;
+	// 	DifferentialState vz;	
 
-		// Control Input
-		Control ax;
-		Control ay;
-		Control az;
-		Control skd;
-		Control sks;
+	// 	// Control Input
+	// 	Control ax;
+	// 	Control ay;
+	// 	Control az;
+	// 	Control skd;
+	// 	Control sks;
 		
-		// Dynamics Model
-		DifferentialEquation f;
-		f << dot(x) == vx;
-		f << dot(y) == vy;
-		f << dot(z) == vz;
-		f << dot(vx) == ax; 
-		f << dot(vy) == ay;
-		f << dot(vz) == az;
+	// 	// Dynamics Model
+	// 	DifferentialEquation f;
+	// 	f << dot(x) == vx;
+	// 	f << dot(y) == vy;
+	// 	f << dot(z) == vz;
+	// 	f << dot(vx) == ax; 
+	// 	f << dot(vy) == ay;
+	// 	f << dot(vz) == az;
 		
-		// Objective Function
-		Function h;
-		h << x;
-		h << y;
-		h << z;
-		h << ax;
-		h << ay;
-		h << az;
-		h << skd;
-		h << sks;
+	// 	// Objective Function
+	// 	Function h;
+	// 	h << x;
+	// 	h << y;
+	// 	h << z;
+	// 	h << ax;
+	// 	h << ay;
+	// 	h << az;
+	// 	h << skd;
+	// 	h << sks;
 
-		// Reference Trajectory
-		VariablesGrid refTraj = this->getReferenceTraj();
+	// 	// Reference Trajectory
+	// 	VariablesGrid refTraj = this->getReferenceTraj();
 
-		// Set up the optimal control problem
-		OCP ocp (refTraj);
+	// 	// Set up the optimal control problem
+	// 	OCP ocp (refTraj);
 
-		DMatrix Q (8, 8);
-		Q.setIdentity(); Q(0,0) = 10.0; Q(1,1) = 10.0; Q(2,2) = 10.0; Q(3,3) = 1.0; Q(4,4) = 1.0; Q(5,5) = 1.0; Q(6,6) = 1000.0; Q(7,7) = 1000.0;
-		ocp.minimizeLSQ(Q, h, refTraj); 
-		// Contraints
-		ocp.subjectTo(f); // dynamics
-		double skslimit = 1.0 - pow((1 - this->staticSlack_), 2);
-		double skdlimit = 1.0 - pow((1 - this->dynamicSlack_), 2);
-		ocp.subjectTo( this->zRangeMin_ <= z <= this->zRangeMax_ );
-		ocp.subjectTo( -this->maxVel_ <= vx <= this->maxVel_ );
-		ocp.subjectTo( -this->maxVel_ <= vy <= this->maxVel_ );
-		ocp.subjectTo( -this->maxVel_ <= vz <= this->maxVel_ );
-		ocp.subjectTo( -this->maxAcc_ <= ax <= this->maxAcc_ );
-		ocp.subjectTo( -this->maxAcc_ <= ay <= this->maxAcc_ );
-		ocp.subjectTo( -this->maxAcc_ <= az <= this->maxAcc_ );
-		ocp.subjectTo( 0.0 <= skd <= skdlimit);
-		ocp.subjectTo( 0.0 <= sks <= skslimit);
+	// 	DMatrix Q (8, 8);
+	// 	Q.setIdentity(); Q(0,0) = 10.0; Q(1,1) = 10.0; Q(2,2) = 10.0; Q(3,3) = 1.0; Q(4,4) = 1.0; Q(5,5) = 1.0; Q(6,6) = 1000.0; Q(7,7) = 1000.0;
+	// 	ocp.minimizeLSQ(Q, h, refTraj); 
+	// 	// Contraints
+	// 	ocp.subjectTo(f); // dynamics
+	// 	double skslimit = 1.0 - pow((1 - this->staticSlack_), 2);
+	// 	double skdlimit = 1.0 - pow((1 - this->dynamicSlack_), 2);
+	// 	ocp.subjectTo( this->zRangeMin_ <= z <= this->zRangeMax_ );
+	// 	ocp.subjectTo( -this->maxVel_ <= vx <= this->maxVel_ );
+	// 	ocp.subjectTo( -this->maxVel_ <= vy <= this->maxVel_ );
+	// 	ocp.subjectTo( -this->maxVel_ <= vz <= this->maxVel_ );
+	// 	ocp.subjectTo( -this->maxAcc_ <= ax <= this->maxAcc_ );
+	// 	ocp.subjectTo( -this->maxAcc_ <= ay <= this->maxAcc_ );
+	// 	ocp.subjectTo( -this->maxAcc_ <= az <= this->maxAcc_ );
+	// 	ocp.subjectTo( 0.0 <= skd <= skdlimit);
+	// 	ocp.subjectTo( 0.0 <= sks <= skslimit);
 		
 
-		// Static obstacle constraints
-		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
-		for (int i=0; i<int(staticObstacles.size()); ++i){
-			staticObstacle so = staticObstacles[i];
-			double yaw = so.yaw;
-			Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-			Eigen::Vector3d centroid = so.centroid;
+	// 	// Static obstacle constraints
+	// 	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	// 	for (int i=0; i<int(staticObstacles.size()); ++i){
+	// 		staticObstacle so = staticObstacles[i];
+	// 		double yaw = so.yaw;
+	// 		Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 		Eigen::Vector3d centroid = so.centroid;
 
-			if (size(0) == 0 or size(1) == 0 or size(2) == 0) continue;
-			ocp.subjectTo(pow((x - centroid(0))*cos(yaw) + (y - centroid(1))*sin(yaw), 2)/pow(size(0), 2) + pow(-(x - centroid(0))*sin(yaw) + (y - centroid(1))*cos(yaw), 2)/pow(size(1), 2) + pow(z - centroid(2), 2)/pow(size(2), 2) - 1  + sks >= 0 );
-		}
+	// 		if (size(0) == 0 or size(1) == 0 or size(2) == 0) continue;
+	// 		ocp.subjectTo(pow((x - centroid(0))*cos(yaw) + (y - centroid(1))*sin(yaw), 2)/pow(size(0), 2) + pow(-(x - centroid(0))*sin(yaw) + (y - centroid(1))*cos(yaw), 2)/pow(size(1), 2) + pow(z - centroid(2), 2)/pow(size(2), 2) - 1  + sks >= 0 );
+	// 	}
 
-		// Dynamic obstacle constraints
-		if (this->dynamicObstaclesPos_.size() != 0){
-			// Horizon
-			for (int n=0; n<this->horizon_; ++n){
-				for (int i=0; i<int(this->dynamicObstaclesPos_.size()); ++i){
-					Eigen::Vector3d size = this->dynamicObstaclesSize_[i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-					Eigen::Vector3d pos = this->dynamicObstaclesPos_[i];
-					Eigen::Vector3d vel = this->dynamicObstaclesVel_[i];
+	// 	// Dynamic obstacle constraints
+	// 	if (this->dynamicObstaclesPos_.size() != 0){
+	// 		// Horizon
+	// 		for (int n=0; n<this->horizon_; ++n){
+	// 			for (int i=0; i<int(this->dynamicObstaclesPos_.size()); ++i){
+	// 				Eigen::Vector3d size = this->dynamicObstaclesSize_[i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 				Eigen::Vector3d pos = this->dynamicObstaclesPos_[i];
+	// 				Eigen::Vector3d vel = this->dynamicObstaclesVel_[i];
 					
-					if (this->firstTime_ || this->currentStatesSol_.isEmpty()){
-						ocp.subjectTo(n, pow((x-pos(0))/size(0), 2) + pow((y-pos(1))/size(1), 2) + pow((z-pos(2))/pow(size(2), 2), 2) - 1 + skd >=  0 );
-					}
-					else{
-						double cx, cy, cz;
-						DVector linearizePoint;
-						if (n < this->horizon_- 1){
-							linearizePoint = this->currentStatesSol_.getVector(n+1);
-							cx = linearizePoint(0);
-							cy = linearizePoint(1);
-							cz = linearizePoint(2);
-						}
-						else{
-							linearizePoint = this->currentStatesSol_.getVector(this->horizon_-1);
-							cx = linearizePoint(0) + linearizePoint(3) * this->ts_;
-							cy = linearizePoint(1) + linearizePoint(4) * this->ts_;
-							cz = linearizePoint(2) + linearizePoint(5) * this->ts_;
-						}
-						ocp.subjectTo(n, pow((cx-pos(0))/size(0), 2) + pow((cy-pos(1))/size(1), 2) + pow((cz-pos(2))/pow(size(2), 2), 2)  
-										+ 2 * ((cx-pos(0))/pow(size(0), 2)*(x-cx) + (cy-pos(1))/pow(size(1), 2)*(y-cy) + (cz-pos(2))/pow(size(2), 2)*(z-cz)) - 1 + skd >= 0 );
-					}
-				}
-			}
-		}
+	// 				if (this->firstTime_ || this->currentStatesSol_.isEmpty()){
+	// 					ocp.subjectTo(n, pow((x-pos(0))/size(0), 2) + pow((y-pos(1))/size(1), 2) + pow((z-pos(2))/pow(size(2), 2), 2) - 1 + skd >=  0 );
+	// 				}
+	// 				else{
+	// 					double cx, cy, cz;
+	// 					DVector linearizePoint;
+	// 					if (n < this->horizon_- 1){
+	// 						linearizePoint = this->currentStatesSol_.getVector(n+1);
+	// 						cx = linearizePoint(0);
+	// 						cy = linearizePoint(1);
+	// 						cz = linearizePoint(2);
+	// 					}
+	// 					else{
+	// 						linearizePoint = this->currentStatesSol_.getVector(this->horizon_-1);
+	// 						cx = linearizePoint(0) + linearizePoint(3) * this->ts_;
+	// 						cy = linearizePoint(1) + linearizePoint(4) * this->ts_;
+	// 						cz = linearizePoint(2) + linearizePoint(5) * this->ts_;
+	// 					}
+	// 					ocp.subjectTo(n, pow((cx-pos(0))/size(0), 2) + pow((cy-pos(1))/size(1), 2) + pow((cz-pos(2))/pow(size(2), 2), 2)  
+	// 									+ 2 * ((cx-pos(0))/pow(size(0), 2)*(x-cx) + (cy-pos(1))/pow(size(1), 2)*(y-cy) + (cz-pos(2))/pow(size(2), 2)*(z-cz)) - 1 + skd >= 0 );
+	// 				}
+	// 			}
+	// 		}
+	// 	}
 
 
-		// Algorithm
-		RealTimeAlgorithm RTalgorithm(ocp, this->ts_);
-		RTalgorithm.set(PRINTLEVEL, NONE);
-		if (not this->firstTime_){
-			RTalgorithm.initializeDifferentialStates(this->currentStatesSol_);
-		}
+	// 	// Algorithm
+	// 	RealTimeAlgorithm RTalgorithm(ocp, this->ts_);
+	// 	RTalgorithm.set(PRINTLEVEL, NONE);
+	// 	if (not this->firstTime_){
+	// 		RTalgorithm.initializeDifferentialStates(this->currentStatesSol_);
+	// 	}
 
-		RTalgorithm.set(MAX_NUM_ITERATIONS, 1);
-		// RTalgorithm.set(KKT_TOLERANCE, 3e-4);
-		RTalgorithm.set(TERMINATE_AT_CONVERGENCE, BT_TRUE);
+	// 	RTalgorithm.set(MAX_NUM_ITERATIONS, 1);
+	// 	// RTalgorithm.set(KKT_TOLERANCE, 3e-4);
+	// 	RTalgorithm.set(TERMINATE_AT_CONVERGENCE, BT_TRUE);
 
-		// Solve
-		DVector currentState ({this->currPos_(0), this->currPos_(1), this->currPos_(2), this->currVel_(0), this->currVel_(1), this->currVel_(2)});
-		RTalgorithm.solve(0.0, currentState); // start time and t0
-		RTalgorithm.getDifferentialStates(this->currentStatesSol_);
-		RTalgorithm.getControls(this->currentControlsSol_);
-		this->firstTime_ = false;
-		clearAllStaticCounters();
-		// cout<<"[MPC Planner]: Success Return!"<<endl;
-		// cout << this->currentControlsSol_ << endl;
-		std::cout.rdbuf(cout_buff);
-		return true;
-	}
+	// 	// Solve
+	// 	DVector currentState ({this->currPos_(0), this->currPos_(1), this->currPos_(2), this->currVel_(0), this->currVel_(1), this->currVel_(2)});
+	// 	RTalgorithm.solve(0.0, currentState); // start time and t0
+	// 	RTalgorithm.getDifferentialStates(this->currentStatesSol_);
+	// 	RTalgorithm.getControls(this->currentControlsSol_);
+	// 	this->firstTime_ = false;
+	// 	clearAllStaticCounters();
+	// 	// cout<<"[MPC Planner]: Success Return!"<<endl;
+	// 	// cout << this->currentControlsSol_ << endl;
+	// 	std::cout.rdbuf(cout_buff);
+	// 	return true;
+	// }
 
 	bool mpcPlanner::makePlanCG(){
 		int NUM_STEPS = 10;
@@ -372,21 +372,28 @@ namespace trajPlanner{
 		acado_initializeSolver();
 
 		// Obtain reference trajectory
-		VariablesGrid refTraj = this->getReferenceTraj();
-
+		std::vector<Eigen::Vector3d> refTraj;
+		this->getReferenceTraj(refTraj);
 		for (int i = 0; i<ACADO_N; i++){
-			DVector ref = refTraj.getVector(i);
-			for (int j = 0; j<ACADO_NY; j++){
-				acadoVariables.y[i*ACADO_NY+j] = ref(j);
+			Eigen::Vector3d ref = refTraj[i];
+			acadoVariables.y[i*ACADO_NY] = ref(0);
+			acadoVariables.y[i*ACADO_NY+1] = ref(1);
+			acadoVariables.y[i*ACADO_NY+2] = ref(2);
+			for (int j = 3; j<ACADO_NY; j++){
+				acadoVariables.y[i*ACADO_NY+j] = 0.0;
 			}		
 		}
 
-		DVector refN = refTraj.getLastVector();
-		for (int i = 0; i < ACADO_NYN; i++){
-			acadoVariables.yN[i] = refN(i);
+		Eigen::Vector3d refN = refTraj.back();
+		acadoVariables.yN[0] = refN(0);
+		acadoVariables.yN[1] = refN(1);
+		acadoVariables.yN[2] = refN(2);
+		for (int i = 3; i < ACADO_NYN; i++){
+			acadoVariables.yN[i] = 0.0;
 		}
 
-		DVector currentState ({this->currPos_(0), this->currPos_(1), this->currPos_(2), this->currVel_(0), this->currVel_(1), this->currVel_(2)});
+		Eigen::VectorXd currentState(6);
+		currentState<< this->currPos_(0), this->currPos_(1), this->currPos_(2), this->currVel_(0), this->currVel_(1), this->currVel_(2);
 		for (int i = 0; i < ACADO_NX-1; ++i){
 			acadoVariables.x0[ i ] = currentState(i);
 		} 
@@ -468,37 +475,21 @@ namespace trajPlanner{
 			acado_preparationStep();
 		}
 		if ((errorMessage == 0)){
-			if (this->currentStatesSol_.isEmpty()){
-				for (int i = 0; i<ACADO_N+1; i++){
-					DVector xi(ACADO_NX-1);
-					for (int j = 0; j<ACADO_NX-1; j++){
-						xi(j) = acadoVariables.x[i*ACADO_NX+j];
-					}	
-					this->currentStatesSol_.addVector(xi);
-				}
-				for (int i = 0; i<ACADO_N; i++){
-					DVector ci(ACADO_NU-1);
-					for (int j = 0; j<ACADO_NU-1; j++){
-						ci(j) = acadoVariables.u[i*ACADO_NU+j];
-					}		
-					this->currentControlsSol_.addVector(ci);
-				}
+			this->currentStatesSol_.clear();
+			this->currentControlsSol_.clear();
+			for (int i = 0; i<ACADO_N+1; i++){
+				Eigen::VectorXd xi(ACADO_NX-1);
+				for (int j = 0; j<ACADO_NX-1; j++){
+					xi(j) = acadoVariables.x[i*ACADO_NX+j];
+				}	
+				this->currentStatesSol_.push_back(xi);
 			}
-			else{
-				for (int i = 0; i<ACADO_N+1; i++){
-					DVector xi(ACADO_NX-1);
-					for (int j = 0; j<ACADO_NX-1; j++){
-						xi(j) = acadoVariables.x[i*ACADO_NX+j];
-					}	
-					this->currentStatesSol_.setVector(i,xi);
-				}
-				for (int i = 0; i<ACADO_N; i++){
-					DVector ci(ACADO_NU-1);
-					for (int j = 0; j<ACADO_NU-1; j++){
-						ci(j) = acadoVariables.u[i*ACADO_NU+j];
-					}		
-					this->currentControlsSol_.setVector(i,ci);
-				}
+			for (int i = 0; i<ACADO_N; i++){
+				Eigen::VectorXd ci(ACADO_NU-1);
+				for (int j = 0; j<ACADO_NU-1; j++){
+					ci(j) = acadoVariables.u[i*ACADO_NU+j];
+				}		
+				this->currentControlsSol_.push_back(ci);
 			}		
 			this->firstTime_ = false;
 			return true;
@@ -537,35 +528,36 @@ namespace trajPlanner{
 		}
 	}
 
-	VariablesGrid mpcPlanner::getReferenceTraj(){
-		std::vector<Eigen::Vector3d> referenceTraj;
-		this->getReferenceTraj(referenceTraj);
+	// VariablesGrid mpcPlanner::getReferenceTraj(){
+	// 	std::vector<Eigen::Vector3d> referenceTraj;
+	// 	this->getReferenceTraj(referenceTraj);
 
-		VariablesGrid r (8, 0);
-		double t = 0.0;
-		for (int i=0; i<int(referenceTraj.size()); ++i){
-			DVector p (8);
-			// pos
-			p(0) = referenceTraj[i](0);
-			p(1) = referenceTraj[i](1);
-			p(2) = referenceTraj[i](2);
-			// control input
-			p(3) = 0.0;
-			p(4) = 0.0;
-			p(5) = 0.0;
-			// slack variables
-			p(6) = 0.0;
-			p(7) = 0.0;
-			r.addVector(p, t);
-			t += this->ts_;
-		}
-		return r;
-	}
+	// 	VariablesGrid r (8, 0);
+	// 	double t = 0.0;
+	// 	for (int i=0; i<int(referenceTraj.size()); ++i){
+	// 		DVector p (8);
+	// 		// pos
+	// 		p(0) = referenceTraj[i](0);
+	// 		p(1) = referenceTraj[i](1);
+	// 		p(2) = referenceTraj[i](2);
+	// 		// control input
+	// 		p(3) = 0.0;
+	// 		p(4) = 0.0;
+	// 		p(5) = 0.0;
+	// 		// slack variables
+	// 		p(6) = 0.0;
+	// 		p(7) = 0.0;
+	// 		r.addVector(p, t);
+	// 		t += this->ts_;
+	// 	}
+	// 	return r;
+	// }
 
 	void mpcPlanner::getTrajectory(std::vector<Eigen::Vector3d>& traj){
 		traj.clear();
 		for (int i=0; i<this->horizon_; ++i){
-			DVector states = this->currentStatesSol_.getVector(i);
+			// DVector states = this->currentStatesSol_.getVector(i);
+			Eigen::VectorXd states = this->currentStatesSol_[i];
 			Eigen::Vector3d p (states(0), states(1), states(2));
 			traj.push_back(p);
 		}
@@ -592,8 +584,8 @@ namespace trajPlanner{
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
-		DVector states = this->currentStatesSol_.getVector(idx);
-		DVector nextStates = this->currentStatesSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::VectorXd states = this->currentStatesSol_[idx];
+		Eigen::VectorXd nextStates = this->currentStatesSol_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d p;
 		p(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
 		p(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
@@ -609,8 +601,8 @@ namespace trajPlanner{
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
-		DVector states = this->currentStatesSol_.getVector(idx);
-		DVector nextStates = this->currentStatesSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::VectorXd states = this->currentStatesSol_[idx];
+		Eigen::VectorXd nextStates = this->currentStatesSol_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d v;
 		v(0) = states(3)+(nextStates(3)-states(3))/this->ts_*dt;
 		v(1) = states(4)+(nextStates(4)-states(4))/this->ts_*dt;
@@ -626,8 +618,8 @@ namespace trajPlanner{
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
-		DVector states = this->currentControlsSol_.getVector(idx);
-		DVector nextStates = this->currentControlsSol_.getVector(std::min(idx+1, this->horizon_-1));
+		Eigen::VectorXd states = this->currentControlsSol_[idx];
+		Eigen::VectorXd nextStates = this->currentControlsSol_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d a;
 		a(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
 		a(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;

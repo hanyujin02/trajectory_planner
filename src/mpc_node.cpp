@@ -60,6 +60,24 @@ void visPub(){
 	}	
 }
 
+bool goalHasCollision(std::shared_ptr<mapManager::occMap> map, const std::vector<double>& goal){
+	Eigen::Vector3d p;
+	double r = 0.5;//radius for goal collision check
+	for (double i=-r; i<=r;i+=0.1){
+		for(double j=-r;j<=r;j+=0.1){
+			for (double k = -r; k<=r; k+=0.1){
+				p(0) = goal[0]+i;
+				p(1) = goal[1]+j;
+				p(2) = goal[2]+k;
+				if (map->isInflatedOccupied(p)){
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 int main(int argc, char** argv){
 	ros::init(argc, argv, "mpc_navigation_node");
 	ros::NodeHandle nh;
@@ -119,8 +137,14 @@ int main(int argc, char** argv){
 					else{
 						cout << "[Test MPC Node]: current point" << " i=" << countPoints << " (" << currPose[0] << " " << currPose[1] << " " << currPose[2] << " " << currPose[3] << ")" << endl;
 					}
-					waypoints.push_back(currPose);
-					++countPoints;
+					if (not goalHasCollision(map,currPose)){
+						waypoints.push_back(currPose);
+						++countPoints;
+					}
+					else{
+						cout<<" [Test MPC Node]: invalid, please select new waypoint."<<endl;
+					}
+
 					break;
 				}
 				ros::spinOnce();

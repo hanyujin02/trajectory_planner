@@ -11,8 +11,8 @@
 #include <acado_toolkit.hpp>
 #include <acado_optimal_control.hpp>
 // #include <acado_gnuplot.hpp>
-#include <matrix_vector/vector.hpp>
-#include <stdio.h>
+// #include <matrix_vector/vector.hpp>
+// #include <stdio.h>
 
 USING_NAMESPACE_ACADO
 

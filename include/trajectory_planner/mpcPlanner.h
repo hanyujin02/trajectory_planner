@@ -4,12 +4,11 @@
 	mpc trajectory solver header based on occupancy grid map
 */
 
-// #ifndef MPC_PLANNER_H
-// #define MPC_PLANNER_H
+#ifndef MPC_PLANNER_H
+#define MPC_PLANNER_H
 #include <ros/ros.h>
-#include <acado_toolkit.hpp>
-#include <acado_gnuplot.hpp>
-#include <acado_optimal_control.hpp>
+// #include <acado_toolkit.hpp>
+// #include <acado_optimal_control.hpp>
 #include <Eigen/Eigen>
 #include <iostream>
 #include <chrono>
@@ -25,7 +24,7 @@
 #include <visualization_msgs/MarkerArray.h>
 // ACADOvariables acadoVariables;
 // ACADOworkspace acadoWorkspace;
-USING_NAMESPACE_ACADO
+// USING_NAMESPACE_ACADO
 using std::cout; using std::endl;
 namespace trajPlanner{
 	class mpcPlanner{
@@ -52,8 +51,10 @@ namespace trajPlanner{
 		int lastRefStartIdx_ = 0;
 		bool firstTime_ = true;
 		bool stateReceived_ = false;
-		VariablesGrid currentStatesSol_;
-		VariablesGrid currentControlsSol_;
+		std::vector<Eigen::VectorXd> currentStatesSol_;
+		std::vector<Eigen::VectorXd> currentControlsSol_;
+		// VariablesGrid currentStatesSol_;
+		// VariablesGrid currentControlsSol_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
@@ -96,11 +97,11 @@ namespace trajPlanner{
 		void updatePath(const nav_msgs::Path& path, double ts);
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
-		bool makePlan();
+		// bool makePlan();
 		bool makePlanCG();
 
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
-		VariablesGrid getReferenceTraj();
+		// VariablesGrid getReferenceTraj();
 
 		void getTrajectory(std::vector<Eigen::Vector3d>& traj);
 		void getTrajectory(nav_msgs::Path& traj);
@@ -120,4 +121,4 @@ namespace trajPlanner{
 
 	};
 }
-// #endif
+#endif
