@@ -366,7 +366,7 @@ namespace trajPlanner{
 
 	bool mpcPlanner::makePlanCG(){
 		int NUM_STEPS = 10;
-		double Tolerance = 1e-4;
+		double maxTolerance = 1e-4;
 		int errorMessage;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
 		acado_initializeSolver();
@@ -457,12 +457,13 @@ namespace trajPlanner{
 		}
 
 		ros::Time solverStartTime = ros::Time::now();
+		double Tolerance;
 		for (int iter =0;iter<NUM_STEPS;++iter){
 			/* Perform the feedback step. */
 			errorMessage = acado_feedbackStep( );
 			ros::Time currentTime = ros::Time::now();
-
-			if (acado_getKKT() <= 1e-6 && iter != 0){
+			Tolerance = acado_getKKT();
+			if (Tolerance <= 1e-6 && iter != 0){
 				break;
 			}			
 			else if ((currentTime-solverStartTime).toSec()>=0.08 and not this->firstTime_){
@@ -474,7 +475,7 @@ namespace trajPlanner{
 			/* Prepare for the next step. */
 			acado_preparationStep();
 		}
-		if ((errorMessage == 0)){
+		if ((errorMessage == 0) and Tolerance <= maxTolerance){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
 			for (int i = 0; i<ACADO_N+1; i++){
@@ -497,6 +498,7 @@ namespace trajPlanner{
 		else{
 			printf(acado_getErrorString(errorMessage));	
 			printf("\n");
+			cout<<"KKT Tolerance: "<<Tolerance<<endl;
 			return false;
 		}
 

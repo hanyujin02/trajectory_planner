@@ -194,10 +194,10 @@ int main(int argc, char** argv){
 			planSuccess = mp->makePlanCG();
 			ros::Time mpcEndTime = ros::Time::now();
 			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-			// if (planSuccess){
+			if (planSuccess){
 			currPos = mp->getPos(dt);
 			currVel = mp->getVel(dt);
-			// }
+			}
 			t += dt;
 			ros::spinOnce();
 			r.sleep();
