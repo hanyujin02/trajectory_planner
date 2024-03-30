@@ -4,8 +4,8 @@
 	mpc trajectory solver header based on occupancy grid map
 */
 
-#ifndef MPC_PLANNER_H
-#define MPC_PLANNER_H
+// #ifndef MPC_PLANNER_H
+// #define MPC_PLANNER_H
 #include <ros/ros.h>
 #include <acado_toolkit.hpp>
 #include <acado_gnuplot.hpp>
@@ -13,18 +13,18 @@
 #include <Eigen/Eigen>
 #include <iostream>
 #include <chrono>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
+// #include <thread>
+// #include <mutex>
+// #include <condition_variable>
 #include <trajectory_planner/clustering/obstacleClustering.h>
 #include <trajectory_planner/utils.h>
 #include <map_manager/occupancyMap.h>
-#include <trajectory_planner/mpc_solver/acado_common.h>
+// #include <trajectory_planner/mpc_solver/acado_common.h>
 #include <trajectory_planner/mpc_solver/acado_auxiliary_functions.h>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/MarkerArray.h>
-ACADOvariables acadoVariables;
-ACADOworkspace acadoWorkspace;
+// ACADOvariables acadoVariables;
+// ACADOworkspace acadoWorkspace;
 USING_NAMESPACE_ACADO
 using std::cout; using std::endl;
 namespace trajPlanner{
@@ -120,4 +120,4 @@ namespace trajPlanner{
 
 	};
 }
-#endif
+// #endif
