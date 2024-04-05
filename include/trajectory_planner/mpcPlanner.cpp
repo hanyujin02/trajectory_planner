@@ -376,7 +376,7 @@ namespace trajPlanner{
 	// 	return true;
 	// }
 
-	bool mpcPlanner::makePlanCG(){
+	bool mpcPlanner::makePlan(){
 		int NUM_STEPS = 10;
 		double maxTolerance = 1000;
 		int errorMessage;
