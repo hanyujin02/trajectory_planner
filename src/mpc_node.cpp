@@ -60,6 +60,41 @@ void visPub(){
 	}	
 }
 
+bool goalHasCollision(std::shared_ptr<mapManager::occMap> map, const std::vector<double>& goal){
+	Eigen::Vector3d p;
+	double r = 0.5;//radius for goal collision check
+	for (double i=-r; i<=r;i+=0.1){
+		for(double j=-r;j<=r;j+=0.1){
+			for (double k = -r; k<=r; k+=0.1){
+				p(0) = goal[0]+i;
+				p(1) = goal[1]+j;
+				p(2) = goal[2]+k;
+				if (map->isInflatedOccupied(p)){
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool hasCollision(std::shared_ptr<trajPlanner::mpcPlanner> mp,std::shared_ptr<mapManager::occMap> map, ros::Time trajStartTime){
+	double dt = mp->getTs();
+	ros::Time currTime = ros::Time::now();
+	double startTime = std::min((currTime-trajStartTime).toSec(),mp->getHorizon()*dt-2.0);
+	double endTime = std::min(startTime+2.0, mp->getHorizon()*dt);
+	// cout<<"collision check: start time  "<<startTime<<"end time: "<< endTime<<endl;
+	for (double t = startTime; t<=endTime; t+=dt){
+		Eigen::Vector3d p = mp->getPos(t);
+		bool hasCollision = map->isInflatedOccupied(p);
+		if (hasCollision){
+			cout<<"Collision detected !"<<endl;
+			return true;
+		}
+	}
+	return false;
+}
+
 int main(int argc, char** argv){
 	ros::init(argc, argv, "mpc_navigation_node");
 	ros::NodeHandle nh;
@@ -119,8 +154,14 @@ int main(int argc, char** argv){
 					else{
 						cout << "[Test MPC Node]: current point" << " i=" << countPoints << " (" << currPose[0] << " " << currPose[1] << " " << currPose[2] << " " << currPose[3] << ")" << endl;
 					}
-					waypoints.push_back(currPose);
-					++countPoints;
+					if (not goalHasCollision(map,currPose)){
+						waypoints.push_back(currPose);
+						++countPoints;
+					}
+					else{
+						cout<<" [Test MPC Node]: invalid, please select new waypoint."<<endl;
+					}
+
 					break;
 				}
 				ros::spinOnce();
@@ -159,64 +200,34 @@ int main(int argc, char** argv){
 
 		double t = 0;
 		bool firstTime = true;
+		ros::Time trajStartTime;
 		while (ros::ok() and ((currPos - goalPos).norm() >= 0.2 or t <= 1.0)){
 			ros::Time mpcStartTime = ros::Time::now();
 			mp->updateDynamicObstacles(obg->getObstaclePos(), obg->getObstacleVel(), obg->getObstacleSize());
 			mp->updateCurrStates(currPos, currVel);
 			
-			std::mutex m;
-			std::condition_variable cv;
+			// std::mutex m;
+			// std::condition_variable cv;
 			bool planSuccess;
-
-			if (not firstTime){
-				std::thread check([&cv, &planSuccess, &mp]() 
-				{
-					// retValue = mp->makePlan();
-					planSuccess = mp->makePlanCG();
-					cv.notify_one();
-				});
-
-				check.detach();
-
-				{
-					std::unique_lock<std::mutex> l(m);
-					if(cv.wait_for(l, 0.08s) >= std::cv_status::timeout){ 
-						// ros::Time mpcEndTime = ros::Time::now();
-						// cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-						currPos = mp->getPos(dt);
-						currVel = mp->getVel(dt);
-						t+=dt;
-						ros::Time mpcEndTime = ros::Time::now();
-						cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-						
-						// ros::spinOnce();
-						// r.sleep();
-						continue;
-					}
-
-					ros::Time mpcEndTime = ros::Time::now();
-					cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
-					currPos = mp->getPos(dt);
-					currVel = mp->getVel(dt);
-					t += dt;
-					ros::spinOnce();
-					r.sleep();
-				}
-			}
-			else{
-				// retValue = mp->makePlan();
-				planSuccess = mp->makePlanCG();
-				ros::Time mpcEndTime = ros::Time::now();
-				cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			// planSuccess = mp->makePlanCG();
+			planSuccess = mp->makePlan();
+			ros::Time mpcEndTime = ros::Time::now();
+			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			if (planSuccess){
+				trajStartTime = mpcStartTime;
 				currPos = mp->getPos(dt);
-				currVel = mp->getVel(dt);
-				t += dt;
+				currVel = mp->getVel(dt);	
 				firstTime = false;
-				ros::spinOnce();
-				r.sleep();
 			}
-				// continue;
+			// else if (not firstTime and not hasCollision(mp,map,trajStartTime)){
+			// 	double time = (ros::Time::now()-trajStartTime).toSec();
+			// 	currPos = mp->getPos(time);
+			// 	currVel = mp->getVel(time);	
 			// }
+			t += dt;
+			
+			ros::spinOnce();
+			r.sleep();
 		}
 		cout << "[Test MPC Node]: Complete Current Trajectory." << endl;
 		++countLoop;

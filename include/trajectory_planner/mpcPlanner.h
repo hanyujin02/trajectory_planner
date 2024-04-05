@@ -7,25 +7,23 @@
 #ifndef MPC_PLANNER_H
 #define MPC_PLANNER_H
 #include <ros/ros.h>
-#include <acado_toolkit.hpp>
-#include <acado_gnuplot.hpp>
-#include <acado_optimal_control.hpp>
+// #include <acado_toolkit.hpp>
+// #include <acado_optimal_control.hpp>
 #include <Eigen/Eigen>
 #include <iostream>
 #include <chrono>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <trajectory_planner/clustering/obstacleClustering.h>
 #include <trajectory_planner/utils.h>
 #include <map_manager/occupancyMap.h>
-#include <trajectory_planner/mpc_solver/acado_common.h>
+// #include <trajectory_planner/mpc_solver/acado_common.h>
 #include <trajectory_planner/mpc_solver/acado_auxiliary_functions.h>
+#include <trajectory_planner/mpc_solver/acado_solver_sfunction.h>
+#include <trajectory_planner/mpc_solver/acado_qpoases_interface.hpp>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/MarkerArray.h>
-ACADOvariables acadoVariables;
-ACADOworkspace acadoWorkspace;
-USING_NAMESPACE_ACADO
+// ACADOvariables acadoVariables;
+// ACADOworkspace acadoWorkspace;
+// USING_NAMESPACE_ACADO
 using std::cout; using std::endl;
 namespace trajPlanner{
 	class mpcPlanner{
@@ -52,8 +50,10 @@ namespace trajPlanner{
 		int lastRefStartIdx_ = 0;
 		bool firstTime_ = true;
 		bool stateReceived_ = false;
-		VariablesGrid currentStatesSol_;
-		VariablesGrid currentControlsSol_;
+		std::vector<Eigen::VectorXd> currentStatesSol_;
+		std::vector<Eigen::VectorXd> currentControlsSol_;
+		// VariablesGrid currentStatesSol_;
+		// VariablesGrid currentControlsSol_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
@@ -79,6 +79,7 @@ namespace trajPlanner{
 		double regionSizeY_;
 		double groundHeight_;
 		double ceilingHeight_;
+		double angle_;
 
 	public:
 		mpcPlanner(const ros::NodeHandle& nh);
@@ -97,10 +98,10 @@ namespace trajPlanner{
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		bool makePlan();
-		bool makePlanCG();
+		// bool makePlanCG();
 
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
-		VariablesGrid getReferenceTraj();
+		// VariablesGrid getReferenceTraj();
 
 		void getTrajectory(std::vector<Eigen::Vector3d>& traj);
 		void getTrajectory(nav_msgs::Path& traj);
@@ -108,6 +109,8 @@ namespace trajPlanner{
 		Eigen::Vector3d getPos(double t);
 		Eigen::Vector3d getVel(double t);
 		Eigen::Vector3d getAcc(double t);
+		double getTs();
+		double getHorizon();
 
 		void visCB(const ros::TimerEvent&);
 		void publishMPCTrajectory();
