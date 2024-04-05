@@ -384,7 +384,7 @@ namespace trajPlanner{
 		if (this->firstTime_){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
-			acado_cleanup();
+			// acado_cleanup();
 		}
 		acado_initialize();
 		
@@ -463,7 +463,7 @@ namespace trajPlanner{
 				acadoVariables.od[i*ACADO_NOD+6] = cx;
 				acadoVariables.od[i*ACADO_NOD+7] = cy;
 				acadoVariables.od[i*ACADO_NOD+8] = cz;
-				if (this->dynamicObstaclesPos_.size()>0){
+				// if (this->dynamicObstaclesPos_.size()>0){
 					for (j = 0; j<numDynamicOb;j++){
 						if (j>=this->dynamicObstaclesPos_.size()){
 							// j-=1;
@@ -489,7 +489,7 @@ namespace trajPlanner{
 							obParam[3][j] = fzz;
 						}	
 					}
-				}
+				// }
 				for (k = 0;k+numDynamicOb<numOb;k++){
 					if (k >= staticObstacles.size()){
 						double fxyz,fxx,fyy,fzz;
@@ -532,7 +532,7 @@ namespace trajPlanner{
 				otherParam = 6;
 				//Quadratic Obstacle Contraint
 				std::vector<std::vector<double>> obParam(numObParam,std::vector<double>(numOb));
-				if (this->dynamicObstaclesPos_.size()>0){
+				// if (this->dynamicObstaclesPos_.size()>0){
 					for (j = 0; j<numDynamicOb;j++){
 						if (j>=this->dynamicObstaclesPos_.size()){
 							// j-=1;
@@ -558,7 +558,7 @@ namespace trajPlanner{
 							obParam[6][j]=0.0;
 						}
 					}
-				}
+				// }
 
 				for (k = 0;k+numDynamicOb<numOb;k++){
 					if (k >= staticObstacles.size()){
