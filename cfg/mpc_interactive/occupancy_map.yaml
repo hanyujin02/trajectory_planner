@@ -1,7 +1,7 @@
 sensor_input_mode: 0 # 0 camera 1: lidar
 localization_mode: 1 # 0: pose (default) 1: odom
-depth_image_topic: /camera/depth/image_raw
-# depth_image_topic: /no_topic
+# depth_image_topic: /camera/depth/image_raw
+depth_image_topic: /no_topic
 pose_topic: /mavros/local_position/pose
 odom_topic: /mavros/local_position/odom
 
@@ -49,5 +49,5 @@ verbose: false
 
 # prebuilt_map_directory: "No"
 # prebuilt_map_directory: "/home/zhefanx/catkin_ws/src/CERLAB-UAV-Autonomy/trajectory_planner/map/square_static_map.pcd"
-# prebuilt_map_directory: "/home/zhefanx/catkin_ws/src/CERLAB-UAV-Autonomy/trajectory_planner/map/square_static_map.pcd"
-prebuilt_map_directory: "/home/jhy/catkin_ws/src/CERLAB-UAV-Autonomy/trajectory_planner/map/square_static_map.pcd"
+prebuilt_map_directory: "/home/zhefanx/catkin_ws/src/CERLAB-UAV-Autonomy/trajectory_planner/map/square_static_map.pcd"
+# prebuilt_map_directory: "/home/jhy/catkin_ws/src/CERLAB-UAV-Autonomy/trajectory_planner/map/square_static_map.pcd"

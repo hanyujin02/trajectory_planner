@@ -116,7 +116,7 @@ int main(int argc, char** argv){
 
 	std::shared_ptr<trajPlanner::mpcPlanner> mp;
 	mp.reset(new trajPlanner::mpcPlanner (nh));
-	mp->updateMaxVel(desiredVel*1.2);
+	mp->updateMaxVel(desiredVel);
 	mp->updateMaxAcc(desiredAcc);
 	mp->setMap(map);
 

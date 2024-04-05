@@ -12,9 +12,6 @@
 #include <Eigen/Eigen>
 #include <iostream>
 #include <chrono>
-// #include <thread>
-// #include <mutex>
-// #include <condition_variable>
 #include <trajectory_planner/clustering/obstacleClustering.h>
 #include <trajectory_planner/utils.h>
 #include <map_manager/occupancyMap.h>

@@ -382,7 +382,6 @@ namespace trajPlanner{
 		int errorMessage;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
 		if (this->firstTime_){
-			cout<<"first time"<<endl;
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
 			acado_cleanup();
@@ -558,10 +557,9 @@ namespace trajPlanner{
 							obParam[5][j]=size(2);
 							obParam[6][j]=0.0;
 						}
-						// cout<<"onlinedata idx: "<<j<<endl;
 					}
 				}
-				// cout<<"j:"<<j<<endl;
+
 				for (k = 0;k+numDynamicOb<numOb;k++){
 					if (k >= staticObstacles.size()){
 							obParam[0][j+k]=0.0;
@@ -571,8 +569,6 @@ namespace trajPlanner{
 							obParam[4][j+k]=0.001;
 							obParam[5][j+k]=0.001;
 							obParam[6][j+k]=0.0;
-						
-						// // cout<<"0"<<endl;
 					}
 					else{
 						staticObstacle so = staticObstacles[k];
@@ -627,7 +623,7 @@ namespace trajPlanner{
 		// cout<<"num working set:  "<<acado_getNWSR()<<endl;
 		// acado_printDifferentialVariables();
 		// acado_printControlVariables();
-		if (errorMessage==0 or Tolerance<=maxTolerance ){
+		if (errorMessage==0 or Tolerance <= maxTolerance ){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
 			for (int i = 0; i<ACADO_N+1; i++){
@@ -651,9 +647,7 @@ namespace trajPlanner{
 			return true;
 		}
 		else{
-			printf(acado_getErrorString(errorMessage));	
-			printf("\n");
-			cout<<"KKT Tolerance: "<<Tolerance<<endl;
+			cout << this->hint_ << ": MPC solver failed. KKT tolerance: " << Tolerance << endl;
 			acado_cleanup();
 			return false;
 		}
