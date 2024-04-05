@@ -78,6 +78,23 @@ bool goalHasCollision(std::shared_ptr<mapManager::occMap> map, const std::vector
 	return false;
 }
 
+bool hasCollision(std::shared_ptr<trajPlanner::mpcPlanner> mp,std::shared_ptr<mapManager::occMap> map, ros::Time trajStartTime){
+	double dt = mp->getTs();
+	ros::Time currTime = ros::Time::now();
+	double startTime = std::min((currTime-trajStartTime).toSec(),mp->getHorizon()*dt-2.0);
+	double endTime = std::min(startTime+2.0, mp->getHorizon()*dt);
+	// cout<<"collision check: start time  "<<startTime<<"end time: "<< endTime<<endl;
+	for (double t = startTime; t<=endTime; t+=dt){
+		Eigen::Vector3d p = mp->getPos(t);
+		bool hasCollision = map->isInflatedOccupied(p);
+		if (hasCollision){
+			cout<<"Collision detected !"<<endl;
+			return true;
+		}
+	}
+	return false;
+}
+
 int main(int argc, char** argv){
 	ros::init(argc, argv, "mpc_navigation_node");
 	ros::NodeHandle nh;
@@ -99,7 +116,7 @@ int main(int argc, char** argv){
 
 	std::shared_ptr<trajPlanner::mpcPlanner> mp;
 	mp.reset(new trajPlanner::mpcPlanner (nh));
-	mp->updateMaxVel(desiredVel);
+	mp->updateMaxVel(desiredVel*1.2);
 	mp->updateMaxAcc(desiredAcc);
 	mp->setMap(map);
 
@@ -183,6 +200,7 @@ int main(int argc, char** argv){
 
 		double t = 0;
 		bool firstTime = true;
+		ros::Time trajStartTime;
 		while (ros::ok() and ((currPos - goalPos).norm() >= 0.2 or t <= 1.0)){
 			ros::Time mpcStartTime = ros::Time::now();
 			mp->updateDynamicObstacles(obg->getObstaclePos(), obg->getObstacleVel(), obg->getObstacleSize());
@@ -192,13 +210,22 @@ int main(int argc, char** argv){
 			// std::condition_variable cv;
 			bool planSuccess;
 			planSuccess = mp->makePlanCG();
+			// planSuccess = mp->makePlan();
 			ros::Time mpcEndTime = ros::Time::now();
 			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
 			if (planSuccess){
-			currPos = mp->getPos(dt);
-			currVel = mp->getVel(dt);
+				trajStartTime = mpcStartTime;
+				currPos = mp->getPos(dt);
+				currVel = mp->getVel(dt);	
+				firstTime = false;
 			}
+			// else if (not firstTime and not hasCollision(mp,map,trajStartTime)){
+			// 	double time = (ros::Time::now()-trajStartTime).toSec();
+			// 	currPos = mp->getPos(time);
+			// 	currVel = mp->getVel(time);	
+			// }
 			t += dt;
+			
 			ros::spinOnce();
 			r.sleep();
 		}

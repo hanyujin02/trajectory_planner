@@ -169,7 +169,7 @@ namespace trajPlanner{
         line.color.g = 0;
         line.color.b = 1;
         line.color.a = 1.0;
-        line.lifetime = ros::Duration(0.1);
+        line.lifetime = ros::Duration(0.5);
         
         for(int i = 0; i < int(this->obstaclePos_.size()); i++){
             // visualization msgs

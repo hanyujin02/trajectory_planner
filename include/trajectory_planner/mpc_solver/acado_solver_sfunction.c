@@ -83,7 +83,6 @@ void acado_step(ACADOinput* inData, ACADOoutput* outData)
 #endif /* ( (ACADO_QP_SOLVER == ACADO_QPOASES) || (ACADO_QP_SOLVER == ACADO_QPOASES3) ) */
 			
 			break;
-		
 		case 1:
 			/* Initialize */
 				

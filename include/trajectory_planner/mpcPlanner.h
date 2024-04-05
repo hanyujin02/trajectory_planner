@@ -20,6 +20,8 @@
 #include <map_manager/occupancyMap.h>
 // #include <trajectory_planner/mpc_solver/acado_common.h>
 #include <trajectory_planner/mpc_solver/acado_auxiliary_functions.h>
+#include <trajectory_planner/mpc_solver/acado_solver_sfunction.h>
+#include <trajectory_planner/mpc_solver/acado_qpoases_interface.hpp>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/MarkerArray.h>
 // ACADOvariables acadoVariables;
@@ -80,6 +82,7 @@ namespace trajPlanner{
 		double regionSizeY_;
 		double groundHeight_;
 		double ceilingHeight_;
+		double angle_;
 
 	public:
 		mpcPlanner(const ros::NodeHandle& nh);
