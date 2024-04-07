@@ -132,8 +132,8 @@ namespace trajPlanner{
 	}
 
 	void mpcPlanner::registerCallback(){
-		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.033), &mpcPlanner::visCB, this);
-		this->clusteringTimer_ = this->nh_.createTimer(ros::Duration(0.033), &mpcPlanner::staticObstacleClusteringCB, this);
+		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.05), &mpcPlanner::visCB, this);
+		this->clusteringTimer_ = this->nh_.createTimer(ros::Duration(0.05), &mpcPlanner::staticObstacleClusteringCB, this);
 	}
 
 	void mpcPlanner::setMap(const std::shared_ptr<mapManager::occMap>& map){
@@ -377,7 +377,7 @@ namespace trajPlanner{
 	// }
 
 	bool mpcPlanner::makePlan(){
-		int NUM_STEPS = 10;
+		int NUM_STEPS = 2;
 		double maxTolerance = 1000;
 		int errorMessage;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
@@ -385,8 +385,8 @@ namespace trajPlanner{
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
 			// acado_cleanup();
+			acado_initialize();
 		}
-		acado_initialize();
 		
 		// Obtain reference trajectory
 		std::vector<Eigen::Vector3d> refTraj;
@@ -562,26 +562,26 @@ namespace trajPlanner{
 
 				for (k = 0;k+numDynamicOb<numOb;k++){
 					if (k >= staticObstacles.size()){
-							obParam[0][j+k]=0.0;
-							obParam[1][j+k]=0.0;
-							obParam[2][j+k]=0.0;
-							obParam[3][j+k]=0.001;
-							obParam[4][j+k]=0.001;
-							obParam[5][j+k]=0.001;
-							obParam[6][j+k]=0.0;
+							obParam[0][numDynamicOb+k]=0.0;
+							obParam[1][numDynamicOb+k]=0.0;
+							obParam[2][numDynamicOb+k]=0.0;
+							obParam[3][numDynamicOb+k]=0.001;
+							obParam[4][numDynamicOb+k]=0.001;
+							obParam[5][numDynamicOb+k]=0.001;
+							obParam[6][numDynamicOb+k]=0.0;
 					}
 					else{
 						staticObstacle so = staticObstacles[k];
 						double yaw = so.yaw;
 						Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
 						Eigen::Vector3d centroid = so.centroid;
-						obParam[0][j+k]=centroid(0);
-						obParam[1][j+k]=centroid(1);
-						obParam[2][j+k]=centroid(2);
-						obParam[3][j+k]=size(0);
-						obParam[4][j+k]=size(1);
-						obParam[5][j+k]=size(2);
-						obParam[6][j+k]=yaw;
+						obParam[0][numDynamicOb+k]=centroid(0);
+						obParam[1][numDynamicOb+k]=centroid(1);
+						obParam[2][numDynamicOb+k]=centroid(2);
+						obParam[3][numDynamicOb+k]=size(0);
+						obParam[4][numDynamicOb+k]=size(1);
+						obParam[5][numDynamicOb+k]=size(2);
+						obParam[6][numDynamicOb+k]=yaw;
 					}
 				}
 				for (int m=0; m<obParam.size();m++){
@@ -599,24 +599,23 @@ namespace trajPlanner{
 		double Tolerance;
 		int numIter = 0;
 		for (int iter =0;iter<NUM_STEPS;++iter){			
-
+			/* Prepare for the next step. */
+			acado_preparationStep();
 			/* Perform the feedback step. */
 			errorMessage = acado_feedbackStep();
 			// errorMessage = acado_solve();
 			ros::Time currentTime = ros::Time::now();
 			Tolerance = acado_getKKT();
-			if (Tolerance <= 1e-6 && iter != 0){
+			if (Tolerance <= 1e-6 ){
 				break;
 			}			
-			else if ((currentTime-solverStartTime).toSec()>=0.06 and not this->firstTime_){
+			else if ((currentTime-solverStartTime).toSec()>=0.04 and not this->firstTime_){
 				break;
 			}
 			// else if (errorMessage == 33){//when qp problem is infeasible
 			// 	break;
 			// }			
 			
-			/* Prepare for the next step. */
-			acado_preparationStep();
 			numIter++;
 		}
 		// cout<<"number of iterations: "<<numIter<<endl;
@@ -648,7 +647,7 @@ namespace trajPlanner{
 		}
 		else{
 			cout << this->hint_ << ": MPC solver failed. KKT tolerance: " << Tolerance << endl;
-			acado_cleanup();
+			// acado_cleanup();
 			return false;
 		}
 
