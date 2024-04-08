@@ -142,6 +142,7 @@ namespace trajPlanner{
 
 	void mpcPlanner::staticObstacleClusteringCB(const ros::TimerEvent&){
 		// ros::Time clusteringStartTime = ros::Time::now();
+		// cout<<"[MPC Planner]: clustering CB start time "<<clusteringStartTime<<endl;
 		if (this->inputTraj_.size() == 0 or not this->stateReceived_) return;
 		Eigen::Vector3d mapMin, mapMax;
 		this->map_->getCurrMapRange(mapMin, mapMax);
@@ -185,7 +186,7 @@ namespace trajPlanner{
 		this->obclustering_->run(currCloud);
 		this->refinedBBoxVertices_ = this->obclustering_->getRefinedBBoxes();
 		// ros::Time clusteringEndTime = ros::Time::now();
-		// cout<<"clustering time: "<<(clusteringEndTime-clusteringStartTime).toSec()<<endl;
+		// cout<<"[MPC Planner]: clustering time: "<<(clusteringEndTime-clusteringStartTime).toSec()<<endl;
 	}
 
 	void mpcPlanner::updateMaxVel(double maxVel){
@@ -377,7 +378,13 @@ namespace trajPlanner{
 	// }
 
 	bool mpcPlanner::makePlan(){
-		int NUM_STEPS = 2;
+		int NUM_STEPS;
+		if (this->firstTime_){
+			NUM_STEPS = 10;
+		}
+		else{
+			NUM_STEPS = 1;
+		}
 		double maxTolerance = 1000;
 		int errorMessage;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
@@ -609,7 +616,7 @@ namespace trajPlanner{
 			if (Tolerance <= 1e-6 ){
 				break;
 			}			
-			else if ((currentTime-solverStartTime).toSec()>=0.04 and not this->firstTime_){
+			else if ((currentTime-solverStartTime).toSec()>=0.03 and not this->firstTime_){
 				break;
 			}
 			// else if (errorMessage == 33){//when qp problem is infeasible
@@ -787,11 +794,15 @@ namespace trajPlanner{
 	}
 
 	void mpcPlanner::visCB(const ros::TimerEvent&){
+		// ros::Time start = ros::Time::now();
+		// cout<<"[MPC Planner]: vis CB start time "<<start<<endl;
 		this->publishMPCTrajectory();
 		this->publishHistoricTrajectory();
 		this->publishLocalCloud();
 		this->publishStaticObstacles();
 		this->publishDynamicObstacles();
+		// ros::Time end = ros::Time::now();
+		// cout<<"[MPC Planner]: vis CB time "<<(end-start).toSec()<<endl;
 	}
 
 	void mpcPlanner::publishMPCTrajectory(){
