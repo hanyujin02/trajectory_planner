@@ -9,7 +9,9 @@
 #include <ros/ros.h>
 // #include <acado_toolkit.hpp>
 // #include <acado_optimal_control.hpp>
-#include <Eigen/Eigen>
+// #include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
+// #include <Eigen/Dense>
+// #include <Eigen/Eigen>
 #include <iostream>
 #include <chrono>
 #include <trajectory_planner/clustering/obstacleClustering.h>
@@ -26,6 +28,9 @@
 // USING_NAMESPACE_ACADO
 using std::cout; using std::endl;
 namespace trajPlanner{
+	const int numStates = 6;
+	const int numControls = 3;
+
 	class mpcPlanner{
 	private:
 		std::string ns_;
@@ -61,6 +66,7 @@ namespace trajPlanner{
 		std::vector<Eigen::Vector3d> dynamicObstaclesPos_;
 		std::vector<Eigen::Vector3d> dynamicObstaclesVel_;
 		std::vector<Eigen::Vector3d> dynamicObstaclesSize_;
+		// std::shared_ptr<OsqpEigen::Solver> solver_;
 
 
 		// parameters
@@ -99,6 +105,19 @@ namespace trajPlanner{
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		bool makePlan();
 		// bool makePlanCG();
+
+		// OSQP Solver Setup
+		int OSQPoptimize(); //TODO
+		void setDynamicMatrices(); //TODO
+		void setInequalityConstraints(); //TODO
+		// int findNearestPoseIndex(const Eigen::Matrix<double, numStates, 1>& x0);
+		void getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow);
+		void setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double, numControls> &R);
+		void castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix);
+		void castMPCToQPGradient(const Eigen::DiagonalMatrix<double,numStates> &Q, const std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient);
+		void castMPCToQPConstraintMatrix(); //TODO
+		void castMPCToQPContraintVectors(); //TODO
+		void updateConstraintVectors(); //TODO
 
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
 		// VariablesGrid getReferenceTraj();
