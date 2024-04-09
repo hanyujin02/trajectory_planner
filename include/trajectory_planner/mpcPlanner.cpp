@@ -5,6 +5,7 @@
 */
 
 #include <trajectory_planner/mpcPlanner.h>
+#include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
 
 namespace trajPlanner{
 	mpcPlanner::mpcPlanner(const ros::NodeHandle& nh) : nh_(nh){
@@ -1013,5 +1014,193 @@ namespace trajPlanner{
 		    this->dynamicObstacleVisPub_.publish(lines);	
 		}	
 	}
+
+	void mpcPlanner::setDynamicMatrices(){
+	// TODO: set discretized dynamic matrices (use RK4)
+}
+
+void mpcPlanner::setInequalityConstraints(){
+	//TODO: inequality constraints: xMax, xMin, uMax, uMin
+	// at current stage, you can use -inf <= position <= inf, -2 <= velocity <= 2, -1 <= acceleration <= 1
+
+	//TODO: obstacle constraints: 0 <= obstacle constraint <= inf
+}
+
+
+void mpcPlanner::setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double,numControls> &R){
+	Q.diagonal() << 10.0, 10.0, 10.0, 0, 0, 0;
+    R.diagonal() << 1.0, 1.0, 1.0;
+}
+void mpcPlanner::castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix){
+	hessianMatrix.resize(numStates * (mpcWindow + 1) + numControls * mpcWindow,
+                         numStates * (mpcWindow + 1) + numControls * mpcWindow);
+
+    // populate hessian matrix
+    for (int i = 0; i < numStates * (mpcWindow + 1) + numControls * mpcWindow; i++){
+        if (i < numStates * (mpcWindow + 1)){
+            int posQ = i % numStates;
+            float value = Q.diagonal()[posQ];
+            if (value != 0)
+                hessianMatrix.insert(i, i) = value;
+        } 
+		else{
+            int posR = i % numControls;
+            float value = R.diagonal()[posR];
+            if (value != 0)
+                hessianMatrix.insert(i, i) = value;
+        }
+    }
+}
+void mpcPlanner::castMPCToQPGradient(const Eigen::DiagonalMatrix<double,numStates> &Q, const std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient){
+	std::vector<Eigen::Matrix<double, numStates, 1>> Qx_ref;
+	for (int i = 0; i < xRef.size(); i++){
+		Eigen::Matrix<double, numStates, 1> ref = Q * (-xRef[i]);
+		Qx_ref.push_back(ref);
+	}
+
+    // populate the gradient vector
+    gradient = Eigen::VectorXd::Zero(numStates * (mpcWindow + 1) + numControls * mpcWindow, 1);
+    for (int i = 0; i < (mpcWindow + 1); i++){
+		for (int j = 0; j < numStates; j++){
+			double value = Qx_ref[i](j, 0);
+			gradient(i*numStates+j, 0) = value;
+		}
+    }
+}
+
+void mpcPlanner::getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow){
+	std::vector<Eigen::Vector3d> referenceTraj;
+	this->getReferenceTraj(referenceTraj);
+	std::vector<Eigen::Matrix<double, numStates, 1>> xRefTemp;
+	Eigen::Matrix<double, numStates, 1> ref;
+	ref.setZero();
+	for (int i = 0; i<referenceTraj.size(); ++i){
+		ref(0,0) = referenceTraj[i](0);
+		ref(1,0) = referenceTraj[i](1);
+		ref(2,0) = referenceTraj[i](2);
+		xRefTemp.push_back(ref);
+	}
+	xRef = xRefTemp;
+}
+
+void mpcPlanner::castMPCToQPConstraintMatrix(){
+	// TODO: derive a Eigen::SparseMatrix<double> constraintMatrix
+	
+}
+void mpcPlanner::castMPCToQPContraintVectors(){
+	// TODO: derive Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound
+}
+void mpcPlanner::updateConstraintVectors(){
+	// TODO: update initial condition x0 in equality constraint
+}
+int mpcPlanner::OSQPoptimize(){
+	// set the preview window
+    int mpcWindow = this->horizon_-1;
+
+    // // allocate the dynamics matrices
+    // Eigen::Matrix<double, 12, 12> a;
+    // Eigen::Matrix<double, 12, 4> b;
+
+    // // allocate the constraints vector
+    // Eigen::Matrix<double, 12, 1> xMax;
+    // Eigen::Matrix<double, 12, 1> xMin;
+    // Eigen::Matrix<double, 4, 1> uMax;
+    // Eigen::Matrix<double, 4, 1> uMin;
+
+    // allocate the weight matrices
+    Eigen::DiagonalMatrix<double, numStates> Q;
+    Eigen::DiagonalMatrix<double, numControls> R;
+
+    // allocate the initial and the reference state space
+    Eigen::Matrix<double, numStates, 1> x0;
+	x0(0,0) = this->currPos_(0);
+	x0(1,0) = this->currPos_(1);
+	x0(2,0) = this->currPos_(2);
+	x0(3,0) = this->currVel_(0);
+	x0(4,0) = this->currVel_(1);
+	x0(5,0) = this->currVel_(2);
+    std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
+
+	getXRef(xRef, mpcWindow);
+
+    // allocate QP problem matrices and vectores
+    Eigen::SparseMatrix<double> hessian;
+    Eigen::VectorXd gradient;
+    // Eigen::SparseMatrix<double> linearMatrix;
+    // Eigen::VectorXd lowerBound;
+    // Eigen::VectorXd upperBound;
+
+    // set the initial and the desired states
+    // x0 << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+    // xRef << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+
+    // set MPC problem quantities
+    // setDynamicsMatrices(a, b);
+    // setInequalityConstraints(xMax, xMin, uMax, uMin);
+    setWeightMatrices(Q, R);
+
+    // cast the MPC problem as QP problem
+    castMPCToQPHessian(Q, R, mpcWindow, hessian);
+    castMPCToQPGradient(Q, xRef, mpcWindow, gradient);
+    // castMPCToQPConstraintMatrix(a, b, mpcWindow, linearMatrix);
+    // castMPCToQPConstraintVectors(xMax, xMin, uMax, uMin, x0, mpcWindow, lowerBound, upperBound);
+	
+    // // instantiate the solver
+    OsqpEigen::Solver solver;
+	// OSQPWrapper::OptimizatorSolver solver;
+
+    // // settings
+    // // solver.settings()->setVerbosity(false);
+    // solver.settings()->setWarmStart(true);
+
+    // // set the initial data of the QP solver
+    // solver.data()->setNumberOfVariables(12 * (mpcWindow + 1) + 4 * mpcWindow);
+    // solver.data()->setNumberOfConstraints(2 * 12 * (mpcWindow + 1) + 4 * mpcWindow);
+    // if (!solver.data()->setHessianMatrix(hessian))
+    //     return 1;
+    // if (!solver.data()->setGradient(gradient))
+    //     return 1;
+    // if (!solver.data()->setLinearConstraintsMatrix(linearMatrix))
+    //     return 1;
+    // if (!solver.data()->setLowerBound(lowerBound))
+    //     return 1;
+    // if (!solver.data()->setUpperBound(upperBound))
+    //     return 1;
+
+    // // instantiate the solver
+    // if (!solver.initSolver())
+    //     return 1;
+
+    // // controller input and QPSolution vector
+    // Eigen::Vector4d ctr;
+    // Eigen::VectorXd QPSolution;
+
+    // // number of iteration steps
+    // int numberOfSteps = 50;
+
+    // for (int i = 0; i < numberOfSteps; i++)
+    // {
+
+    //     // solve the QP problem
+    //     if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
+    //         return 1;
+
+    //     // get the controller input
+    //     QPSolution = solver.getSolution();
+    //     ctr = QPSolution.block(12 * (mpcWindow + 1), 0, 4, 1);
+
+    //     // save data into file
+    //     auto x0Data = x0.data();
+
+    //     // propagate the model
+    //     x0 = a * x0 + b * ctr;
+
+    //     // update the constraint bound
+    //     updateConstraintVectors(x0, lowerBound, upperBound);
+    //     if (!solver.updateBounds(lowerBound, upperBound))
+    //         return 1;
+    // }
+    return 0;
+}
 
 }
