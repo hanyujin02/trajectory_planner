@@ -1,3 +1,9 @@
+/*
+*	File: mpc_node.cpp
+*	---------------
+*   MPC trajectory planning node
+*/
+
 #include <ros/ros.h>
 #include <trajectory_planner/mpcPlanner.h>
 #include <trajectory_planner/polyTrajOccMap.h>
