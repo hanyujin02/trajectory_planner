@@ -1,13 +1,9 @@
 /*
- *    file:   nmpc_solver_setup.cpp
- *    author: Oskar Ljungqvist
- *    date:   2017-12-21
- *
- *    Comment: modified version of the nmpc_solver_setup.m works directly in ubutu.
- */
-
+*	File: mpc_solver_setup.cpp
+*	---------------
+*   MPC solver setup code generation
+*/
 #include <acado_code_generation.hpp>
-
 #include <acado_toolkit.hpp>
 #include <acado_optimal_control.hpp>
 #include <vector>
