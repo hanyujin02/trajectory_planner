@@ -41,7 +41,7 @@ namespace trajPlanner{
 		ros::Timer visTimer_;
 		ros::Timer clusteringTimer_;
 
-		std::shared_ptr<mapManager::occMap> map_;
+				std::shared_ptr<mapManager::occMap> map_;
 		std::shared_ptr<obstacleClustering> obclustering_;
 		double ts_; // timestep
 		Eigen::Vector3d currPos_;
