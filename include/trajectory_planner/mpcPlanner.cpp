@@ -629,7 +629,8 @@ namespace trajPlanner{
 		// cout<<"num working set:  "<<acado_getNWSR()<<endl;
 		// acado_printDifferentialVariables();
 		// acado_printControlVariables();
-		if (errorMessage==0 or Tolerance <= maxTolerance ){
+		ros::Time currentTime = ros::Time::now();
+		if (errorMessage==0 or Tolerance <= maxTolerance and (currentTime-solverStartTime).toSec() <= 0.3){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
 			for (int i = 0; i<ACADO_N+1; i++){
