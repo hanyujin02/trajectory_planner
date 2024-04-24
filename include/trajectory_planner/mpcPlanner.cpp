@@ -232,6 +232,7 @@ namespace trajPlanner{
             Eigen::Vector3d size = obstaclesSize[i];
             pos(2) = (pos(2) + size(2)/2)/2;
 			size(2) = 2*pos(2);
+			// pos(2) = pos(2)+size(2)/2;
             this->dynamicObstaclesPos_.push_back(pos);
 			this->dynamicObstaclesSize_.push_back(size);
         }
