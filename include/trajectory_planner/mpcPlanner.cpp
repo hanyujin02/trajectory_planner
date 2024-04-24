@@ -1172,6 +1172,8 @@ int mpcPlanner::OSQPoptimize(){
     // // controller input and QPSolution vector
     // Eigen::Vector4d ctr;
     // Eigen::VectorXd QPSolution;
+	// Eigen::VectorXd control;
+	// Eigen::VectorXd state;
 
     // // number of iteration steps
     // int numberOfSteps = 50;
@@ -1184,7 +1186,19 @@ int mpcPlanner::OSQPoptimize(){
     //         return 1;
 
     //     // get the controller input
-    //     QPSolution = solver.getSolution();
+
+        // QPSolution = solver.getSolution();
+		// this->currentControlsSol_.clear();
+		// this->currentStatesSol_.clear();
+		// 	for (i=0;i<mpcWindow;i++){
+		// 		control = QPSolution.block((numControls+numStates)*i, 0, numControls, 1);
+		// 		this->currentControlsSol_.push_back(control);
+		// 	}
+		// 	for (i=0;i<mpcWindow+1;i++){
+		// 		state = QPSolution.block((numControls+numStates)*i+numControls, 0, numStates, 1);
+		// 		this->currentStatesSol_.push_back(state);
+		// 	}
+		
     //     ctr = QPSolution.block(12 * (mpcWindow + 1), 0, 4, 1);
 
     //     // save data into file
