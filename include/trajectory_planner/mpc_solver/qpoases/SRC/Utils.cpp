@@ -34,12 +34,12 @@
 
 #include <math.h>
 
-#if defined(__WIN32__) || defined(WIN32)
-  #include <windows.h>
-#elif defined(LINUX)
+// #if defined(__WIN32__) || defined(WIN32)
+//   #include <windows.h>
+// #elif defined(LINUX)
   #include <sys/stat.h>
   #include <sys/time.h>
-#endif
+// #endif
 
 #ifdef __MATLAB__
   #include <mex.h>
@@ -434,16 +434,16 @@ real_t getCPUtime( )
 {
 	real_t current_time = -1.0;
 
-	#if defined(__WIN32__) || defined(WIN32)
-	LARGE_INTEGER counter, frequency;
-	QueryPerformanceFrequency(&frequency);
-	QueryPerformanceCounter(&counter);
-	current_time = ((real_t) counter.QuadPart) / ((real_t) frequency.QuadPart);
-	#elif defined(LINUX)
+	// #if defined(__WIN32__) || defined(WIN32)
+	// LARGE_INTEGER counter, frequency;
+	// QueryPerformanceFrequency(&frequency);
+	// QueryPerformanceCounter(&counter);
+	// current_time = ((real_t) counter.QuadPart) / ((real_t) frequency.QuadPart);
+	// #elif defined(LINUX)
 	struct timeval theclock;
 	gettimeofday( &theclock,0 );
 	current_time = 1.0*theclock.tv_sec + 1.0e-6*theclock.tv_usec;
-	#endif
+	// #endif
 
 	return current_time;
 }

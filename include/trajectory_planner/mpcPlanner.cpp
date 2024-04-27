@@ -389,7 +389,8 @@ namespace trajPlanner{
 		}
 		double maxTolerance = 1000;
 		int errorMessage;
-		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<staticObstacle> staticObstaclesRaw = this->obclustering_->getStaticObstacles();
+		std::vector<staticObstacle> staticObstacles = this->sortStaticObstacles(staticObstaclesRaw);
 		if (this->firstTime_){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
@@ -663,6 +664,38 @@ namespace trajPlanner{
 
 	}
 
+	std::vector<staticObstacle> mpcPlanner::sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles){
+		if (staticObstacles.size()>21){
+			std::vector<staticObstacle> staticObstaclesTemp;
+			const int numOb = staticObstacles.size();
+			double distTemp[2][numOb] = {0};
+		
+			for (int i=0; i<numOb;i++){
+				staticObstacle ob = staticObstacles[i];
+				double dist = sqrt(pow(this->currPos_(0)-ob.centroid(0),2)+pow(this->currPos_(1)-ob.centroid(1),2)+pow(this->currPos_(2)-ob.centroid(2),2));
+				distTemp[0][i] = dist;
+				distTemp[1][i] = i;
+			}
+
+			for(int i=0; i<numOb; i++){
+				for(int j=i+1; j<numOb; j++){
+					if (distTemp[0][i]>distTemp[0][j]){
+						double d = distTemp[0][i];
+						double idx = distTemp[1][i];
+						distTemp[0][i] = distTemp[0][j];
+						distTemp[1][i] = distTemp[1][j];
+						distTemp[0][j] = d;
+						distTemp[1][j] = idx;
+					}
+				}
+			}
+			for(int i=0; i<21; i++){
+				staticObstaclesTemp.push_back(staticObstacles[distTemp[1][i]]);
+			}
+			return staticObstaclesTemp;
+		}
+		return staticObstacles;
+	}
 	void mpcPlanner::getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj){
 		// find the nearest position in the reference trajectory
 		double leastDist = std::numeric_limits<double>::max();
