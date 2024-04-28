@@ -107,18 +107,21 @@ namespace trajPlanner{
 		// bool makePlanCG();
 
 		// OSQP Solver Setup
-		int OSQPoptimize(); //TODO
-		void setDynamicMatrices(); //TODO
-		void setInequalityConstraints(); //TODO
+		int OSQPSolve(); //TODO
+		void setDynamicsMatrices(Eigen::Matrix<double, 6, 6> &A, Eigen::Matrix<double, 6, 3> &B); //TODO
+		void setInequalityConstraints(Eigen::Matrix<double, 6, 1> &xMax, Eigen::Matrix<double, 6, 1> &xMin, Eigen::Matrix<double, 3, 1> &uMax, Eigen::Matrix<double, 3, 1> &uMin); //TODO
 		// int findNearestPoseIndex(const Eigen::Matrix<double, numStates, 1>& x0);
 		void getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow);
 		void setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double, numControls> &R);
 		void castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix);
 		void castMPCToQPGradient(const Eigen::DiagonalMatrix<double,numStates> &Q, const std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient);
-		void castMPCToQPConstraintMatrix(); //TODO
-		void castMPCToQPContraintVectors(); //TODO
-		void updateConstraintVectors(); //TODO
-
+		void castMPCToQPConstraintMatrix(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B, Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz);//TODO
+		void castMPCToQPConstraintVectors(Eigen::Matrix<double,6,1> &xMax,Eigen::Matrix<double,6,1> &xMin,Eigen::Matrix<double,3,1> &uMax,Eigen::Matrix<double,3,1> &uMin, const Eigen::Matrix<double, numStates, 1>& x0, Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz); //TODO
+		// void updateConstraintVectors(const Eigen::Matrix<double, 6, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound); //TODO
+		double getErrorNorm(const Eigen::Matrix<double, 6, 1> &x, const Eigen::Matrix<double, 6, 1> &xRef);
+		void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numOb, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz,	Eigen::Matrix<double, Eigen::Dynamic, 3> osize,	Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz);
+		void updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound);
+	
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
 		// VariablesGrid getReferenceTraj();
 
