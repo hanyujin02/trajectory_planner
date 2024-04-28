@@ -213,7 +213,7 @@ int main(int argc, char** argv){
 			// planSuccess = mp->makePlanCG();
 			// planSuccess = mp->makePlan();
 			ros::Time mpcEndTime = ros::Time::now();
-			// cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
+			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
 			if (planSuccess){
 				trajStartTime = mpcStartTime;
 				currPos = mp->getPos(dt);

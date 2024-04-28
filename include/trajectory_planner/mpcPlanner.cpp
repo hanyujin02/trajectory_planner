@@ -1051,8 +1051,8 @@ void mpcPlanner::setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates>
 void mpcPlanner::setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &xMax, Eigen::Matrix<double, numStates, 1> &xMin,
                               Eigen::Matrix<double, numControls, 1> &uMax, Eigen::Matrix<double, numControls, 1> &uMin){
     // state bound
-	xMin <<  -INFINITY, -INFINITY, -INFINITY, -this->maxVel_, -this->maxVel_, -this->maxVel_;
-    xMax << INFINITY, INFINITY, INFINITY, this->maxVel_, this->maxVel_, this->maxVel_;
+	xMin <<  -INFINITY, -INFINITY, this->zRangeMin_, -this->maxVel_, -this->maxVel_, -this->maxVel_;
+    xMax << INFINITY, INFINITY, this->zRangeMax_, this->maxVel_, this->maxVel_, this->maxVel_;
 	// xMin <<  -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY;
     // xMax << INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY;
 
@@ -1274,7 +1274,6 @@ void mpcPlanner::updateConstraintVectors(const Eigen::Matrix<double, numStates, 
 
 void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, Eigen::Matrix<double, Eigen::Dynamic, 3> &oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> &osize,	Eigen::Matrix<double, Eigen::Dynamic, 1> &yaw){
 	numObs = staticObstacles.size()+this->dynamicObstaclesPos_.size();
-	cout<<"num obstacle: "<<numObs<<endl;
 	int numDynamicOb = this->dynamicObstaclesPos_.size();
 	int numStaticOb = staticObstacles.size();
 	oxyz.resize(numObs,3);
@@ -1302,6 +1301,10 @@ void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticOb
 
 int mpcPlanner::OSQPSolve(){
 	// set the preview window
+	if (this->firstTime_){
+		this->currentStatesSol_.clear();
+		this->currentControlsSol_.clear();
+	}
     int mpcWindow = this->horizon_-1;
 	int numObs;
 
@@ -1344,9 +1347,6 @@ int mpcPlanner::OSQPSolve(){
 	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
 	// std::vector<staticObstacle> staticObstacles;
 	updateObstacleParam(staticObstacles, numObs, oxyz, osize, yaw);
-    // set the initial and the desired states
-    // x0 << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-    // xRef << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
     // set MPC problem quantities
     setDynamicsMatrices(a, b);
@@ -1364,7 +1364,7 @@ int mpcPlanner::OSQPSolve(){
 	// OSQPWrapper::OptimizatorSolver solver;
 
     // // settings
-    // // solver.settings()->setVerbosity(false);
+    solver.settings()->setVerbosity(false);
     solver.settings()->setWarmStart(true);
 
     // set the initial data of the QP solver
