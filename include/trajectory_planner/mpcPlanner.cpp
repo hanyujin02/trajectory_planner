@@ -1050,24 +1050,25 @@ void mpcPlanner::setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates>
 
 void mpcPlanner::setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &xMax, Eigen::Matrix<double, numStates, 1> &xMin,
                               Eigen::Matrix<double, numControls, 1> &uMax, Eigen::Matrix<double, numControls, 1> &uMin){
-	//TODO: inequality constraints: xMax, xMin, uMax, uMin
-	// at current stage, you can use -inf <= position <= inf, -2 <= velocity <= 2, -1 <= acceleration <= 1
-
-	//TODO: obstacle constraints: 0 <= obstacle constraint <= inf
-    // state inequality constraints (only position xyz, don't care about velocity xyz)
-    xMin <<  -INFINITY, -INFINITY, -INFINITY, -this->maxVel_, -this->maxVel_, -this->maxVel_;
+    // state bound
+	xMin <<  -INFINITY, -INFINITY, -INFINITY, -this->maxVel_, -this->maxVel_, -this->maxVel_;
     xMax << INFINITY, INFINITY, INFINITY, this->maxVel_, this->maxVel_, this->maxVel_;
+	// xMin <<  -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY;
+    // xMax << INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY;
 
-    // control / input inequality constraints (accerleration xyz)
+    // control bound
     uMin << -this->maxAcc_, -this->maxAcc_, -this->maxAcc_;
     uMax << this->maxAcc_, this->maxAcc_, this->maxAcc_;
+	// uMin << -INFINITY, -INFINITY, -INFINITY;
+    // uMax << INFINITY, INFINITY, INFINITY;
+
 }
 
 
 
 void mpcPlanner::setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double,numControls> &R){
-	Q.diagonal() << 1000.0, 1000.0, 1000.0, 0, 0, 0;
-    R.diagonal() << 100.0, 100.0, 100.0;
+	Q.diagonal() << 10.0, 10.0, 10.0, 0, 0, 0;
+    R.diagonal() << 1.0, 1.0, 1.0;
 }
 void mpcPlanner::castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix){
 	hessianMatrix.resize(numStates * (mpcWindow + 1) + numControls * mpcWindow,
@@ -1122,12 +1123,12 @@ void mpcPlanner::getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef,
 }
 
 
-void mpcPlanner::castMPCToQPConstraintMatrix(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B, Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz){
+void mpcPlanner::castMPCToQPConstraintMatrix(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B, Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 1> yaw){
 	// TODO: derive a Eigen::SparseMatrix<double> constraintMatrix
 	// constraintMatrix.resize(numStates * (mpcWindow+1) + 3 * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow,
 	//     					numStates * (mpcWindow+1) + numControls * mpcWindow);
 	// // constraintMatrix.setZero();
-	constraintMatrix.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow,
+	constraintMatrix.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow,
 	    					numStates * (mpcWindow+1) + numControls * mpcWindow);
 	
 	// populate linear constraint matrix
@@ -1167,49 +1168,32 @@ void mpcPlanner::castMPCToQPConstraintMatrix(Eigen::Matrix<double, numStates, nu
         constraintMatrix.insert(i + (mpcWindow + 1) * numStates, i) = 1;
     }
 
-
-	// // dynamics constraints dynamics matrix(6x9)
-	// for(int i = 0; i < mpcWindow + 1; i++) {
-	// 	for(int j = 0; j < 6; j++) {
-	// 		for(int k = 0; k < (i == mpcWindow ? 6 : 9); k++) {
-	// 			double value = A(j, k);
-	// 			// double value = 1.0;
-	// 			if(value != 0) {
-	// 				constraintMatrix.insert(i * 6 + j, i * 9 + k) = value;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// // inequality constraints xk
-	// for(int i=0; i<mpcWindow+1;i++){
-	// 	for(int j=3;j<6;j++){
-	// 		constraintMatrix.insert(6*(mpcWindow+1)+3*i+j, 9*i+j) = 1.0;
-	// 	}
-	// }
-	// // uk
-	// for(int i=0; i<mpcWindow;i++){
-	// 	for(int j=6;j<9;j++){
-	// 		constraintMatrix.insert(6*(mpcWindow+1)+3*(mpcWindow+1)+3*i+j, 9*i+j) = 1.0;
-	// 	}
-	// }
-
-	// // obstacle constraints
-	// for(int i=0;i<mpcWindow;i++){
-	// 	for(int j=9;j<numObs;j++){
-	// 		double ox = oxyz(j, 0); double oy = oxyz(j, 1); double oz = oxyz(j, 2);
-	// 		double oxsize = osize(j, 0); double oysize = osize(j, 1); double ozsize = osize(j, 2);
-	// 		double cx = cxyz(j, 0); double cy = cxyz(j, 1); double cz = cxyz(j, 2);
-
-	// 		Eigen::Matrix<double, 1, 9> row;
-	// 		row << 2 * (cx-ox)/pow(oxsize,2), 2 * (cy-oy)/pow(oysize,2), 2 * (cz-oz)/pow(ozsize,2), 
-	// 			-2 * (cx-ox)/pow(oxsize,2), -2 * (cy-oy)/pow(oysize,2), -2 * (cz-oz)/pow(ozsize,2),
-	// 			0, 0, 0;
-	// 		for(int k=0;k<9;k++){
-	// 			constraintMatrix.insert(6*(mpcWindow+1)+3*(mpcWindow+1)+3*mpcWindow+j, 9*i+k) = row(0, k);
-	// 		}
-	// 	}
-	// }
+	for (int i = 0; i < mpcWindow; i++){
+		double cx, cy, cz;
+		if (this->currentStatesSol_.size()!=0){
+			cx = this->currentStatesSol_[i](0);
+			cy = this->currentStatesSol_[i](1);
+			cz = this->currentStatesSol_[i](2);
+		}
+		else{
+			cx = this->currPos_(0);
+			cy = this->currPos_(1);
+			cz = this->currPos_(2);
+		}
+		for (int j = 0; j < numObs; j++){
+			double fxx,fyy,fzz;
+			// fxyz = pow((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)), 2)/pow(osize(j,0),2) + pow(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)), 2)/pow(osize(j,1),2) + pow((cz-oxyz(j,2)), 2)/pow(osize(j,2),2);
+			fxx = 2*((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)))/pow(osize(j,0),2)*cos(yaw(j,0))+ 2*(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)))/pow(osize(j,1),2)*(-sin(yaw(j,0)));
+			fyy = 2*((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)))/pow(osize(j,0),2)*sin(yaw(j,0))+ 2*(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)))/pow(osize(j,1),2)*(cos(yaw(j,0)));
+			fzz = 2*((cz-oxyz(j,2)))/pow(osize(j,2),2);
+			// fxx = 2*(cx-oxyz(j,0))/pow(osize(j,0),2);
+			// fyy = 2*(cy-oxyz(j,1))/pow(osize(j,1),2);
+			// fzz = 2*(cz-oxyz(j,2))/pow(osize(j,2),2);
+			constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates + numStates * (mpcWindow + 1) + numControls * mpcWindow, numStates*i) = fxx;//x 
+			constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates + numStates * (mpcWindow + 1) + numControls * mpcWindow, numStates*i+1) = fyy;//y 
+			constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates + numStates * (mpcWindow + 1) + numControls * mpcWindow, numStates*i+2) = fzz;//z 	
+		}
+	}
 }
 
 void mpcPlanner::castMPCToQPConstraintVectors(Eigen::Matrix<double,numStates,1> &xMax,
@@ -1217,13 +1201,8 @@ void mpcPlanner::castMPCToQPConstraintVectors(Eigen::Matrix<double,numStates,1> 
 	Eigen::Matrix<double,numControls,1> &uMax,
 	Eigen::Matrix<double,numControls,1> &uMin,
 	const Eigen::Matrix<double, numStates, 1>& x0,
-	Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz){
-	
-	// Eigen::VectorXd lowerInequality
-    //     = Eigen::MatrixXd::Zero(12 * (mpcWindow + 1) + 4 * mpcWindow, 1);
-    // Eigen::VectorXd upperInequality
-    //     = Eigen::MatrixXd::Zero(12 * (mpcWindow + 1) + 4 * mpcWindow, 1);
-	
+	Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, int numObs, int mpcWindow, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> osize, Eigen::Matrix<double, Eigen::Dynamic, 1> yaw){
+
 	// evaluate the lower and the upper equality vectors
     Eigen::VectorXd lowerEquality = Eigen::MatrixXd::Zero(numStates * (mpcWindow + 1), 1);
     Eigen::VectorXd upperEquality;
@@ -1246,120 +1225,85 @@ void mpcPlanner::castMPCToQPConstraintVectors(Eigen::Matrix<double,numStates,1> 
         upperInequality.block(numControls * i + numStates * (mpcWindow + 1), 0, numControls, 1) = uMax;
     }
 
-    // // merge inequality and equality vectors
-    // lowerBound = Eigen::MatrixXd::Zero(2 * 12 * (mpcWindow + 1) + 4 * mpcWindow, 1);
-    // lowerBound << lowerEquality, lowerInequality;
 
-    // upperBound = Eigen::MatrixXd::Zero(2 * 12 * (mpcWindow + 1) + 4 * mpcWindow, 1);
-    // upperBound << upperEquality, upperInequality;
-
-	// TODO: derive Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound
-	// lowerBound.resize(6 * (mpcWindow+1) + 3 * (mpcWindow+1) + 3 * mpcWindow + numObs * mpcWindow, 1);
-	// lowerBound.setZero();
-	// lowerBound.resize(numStates * (mpcWindow+1) + 3 * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow, 1);
-    // upperBound.resize(numStates * (mpcWindow+1) + 3 * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow, 1);
+	Eigen::VectorXd lowerObstacle
+        = Eigen::MatrixXd::Zero(numObs * mpcWindow, 1);
+    Eigen::VectorXd upperObstacle
+        = Eigen::MatrixXd::Ones(numObs * mpcWindow, 1)*INFINITY;
+		// Zero(numObs * mpcWindow, 1);
+	for (int i = 0; i < mpcWindow; i++){
+		double cx, cy, cz;
+		if (this->currentStatesSol_.size()!=0){
+			cx = this->currentStatesSol_[i](0);
+			cy = this->currentStatesSol_[i](1);
+			cz = this->currentStatesSol_[i](2);
+		}
+		else{
+			cx = this->currPos_(0);
+			cy = this->currPos_(1);
+			cz = this->currPos_(2);
+		}
+		for (int j = 0; j < numObs; j++){
+			double fxyz,fxx,fyy,fzz;
+			fxyz = pow((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)), 2)/pow(osize(j,0),2) + pow(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)), 2)/pow(osize(j,1),2) + pow((cz-oxyz(j,2)), 2)/pow(osize(j,2),2);
+			fxx = 2*((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)))/pow(osize(j,0),2)*cos(yaw(j,0))+ 2*(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)))/pow(osize(j,1),2)*(-sin(yaw(j,0)));
+			fyy = 2*((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)))/pow(osize(j,0),2)*sin(yaw(j,0))+ 2*(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)))/pow(osize(j,1),2)*(cos(yaw(j,0)));
+			fzz = 2*((cz-oxyz(j,2)))/pow(osize(j,2),2);
+			// fxyz = pow(cx-oxyz(j,0),2)/pow(osize(j,0),2)+pow(cy-oxyz(j,1),2)/pow(osize(j,1),2) + pow(cz-oxyz(j,2),2)/pow(osize(j,2),2);
+			// fxx = 2*(cx-oxyz(j,0))/pow(osize(j,0),2);
+			// fyy = 2*(cy-oxyz(j,1))/pow(osize(j,1),2);
+			// fzz = 2*(cz-oxyz(j,2))/pow(osize(j,2),2);
+			lowerObstacle(i*numObs+j) = 1 - fxyz + fxx * cx + fyy * cy + fzz * cz;
+			// cout<<fxyz<<" "<<fxx<<" "<<fyy<<" "<<fzz<<" " <<endl;
+		}
+	}
 	
-	lowerBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow, 1);
-    upperBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow, 1);
+	lowerBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow, 1);
+    upperBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow, 1);
 
-	lowerBound << lowerEquality, lowerInequality;
-	upperBound << upperEquality, lowerInequality;
-    // // initialize bound vectors to zeros
-	// lowerBound.setZero();
-    // upperBound.setZero();
-	// //dynamic constraints
-	// // for(int i=0;i<6*(mpcWindow+1);i++){
-	// // 	lowerBound(i, 0) = 0;
-	// // }
-	// // inequality constraints xk
-	// for (int i = 0; i <= mpcWindow; i++) {
-	// 	for (int j = 0; j < 6; j++) {
-    //         lowerBound(6 * (mpcWindow+1) + 3 * i + j, 0) = xMin(j, 0);
-    //         upperBound(6 * (mpcWindow+1) + 3 * i + j, 0) = xMax(j, 0);
-	// 	}
-	// }
-	// // for(int i=0;i<mpcWindow+1;i++){
-	// // 	for(int j=0;j<6;j++){
-	// // 		lowerBound(6*(mpcWindow+1)+3*i+j, 0) = xMin(j, 0);
-	// // 	}
-	// // }
-	// // uk
-	// // for(int i=0;i<mpcWindow;i++){
-	// // 	for(int j=0;j<3;j++){
-	// // 		lowerBound(6*(mpcWindow+1)+3*(mpcWindow+1)+3*i+j, 0) = uMin(j, 0);
-	// // 	}
-	// // }
-	// for (int i = 0; i < mpcWindow; i++) {
-	// 	for (int j = 0; j < 3; j++) {
-	// 		lowerBound(6 * (mpcWindow+1) + 3 * (mpcWindow+1) + 3 * i + j, 0) = uMin(j, 0);
-    //         upperBound(6 * (mpcWindow+1) + 3 * (mpcWindow+1) + 3 * i + j, 0) = uMax(j, 0);
-	// 	}
-	// }
-	// // obstacle constraints
-	// for(int i=0;i<mpcWindow;i++){
-	// 	for(int j=0;j<numObs;j++){
-	// 		double ox = oxyz(j, 0); double oy = oxyz(j, 1); double oz = oxyz(j, 2);
-	// 		double oxsize = osize(j, 0); double oysize = osize(j, 1); double ozsize = osize(j, 2);
-	// 		double cx = cxyz(j, 0); double cy = cxyz(j, 1); double cz = cxyz(j, 2);
-
-	// 		double bound = 2 * ((cx-ox)*ox/pow(oxsize,2) + (cy-oy)*oy/pow(oysize,2) + (cz-oz)*oz/pow(ozsize,2)) - (pow((cx-ox)/oxsize,2) - pow((cy-oy)/oysize,2) - pow((cz-oz)/ozsize,2));
-
-	// 		lowerBound(6*(mpcWindow+1)+3*(mpcWindow+1)+3*mpcWindow+j, 0) = bound;
-	// 	}
-	// }
+	lowerBound << lowerEquality, lowerInequality, lowerObstacle;
+	upperBound << upperEquality, upperInequality, upperObstacle;
 }
+
 void mpcPlanner::updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0,
                              Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound){
 	// TODO: update initial condition x0 in equality constraint
-	lowerBound.block(0,0,6,1) = -x0;
-    upperBound.block(0,0,6,1) = -x0;
+	lowerBound.block(0,0,numStates,1) = -x0;
+    upperBound.block(0,0,numStates,1) = -x0;
 }
 
-double mpcPlanner::getErrorNorm(const Eigen::Matrix<double, 6, 1> &x,
-                    const Eigen::Matrix<double, 6, 1> &xRef)
-{
-    // evaluate the error
-    Eigen::Matrix<double, 6, 1> error = x - xRef;
-
-    // return the norm
-    return error.norm();
-}
-
-void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numOb, Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz,	Eigen::Matrix<double, Eigen::Dynamic, 3> osize,	Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz){
-	numOb = staticObstacles.size()+this->dynamicObstaclesPos_.size();
+void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, Eigen::Matrix<double, Eigen::Dynamic, 3> &oxyz, Eigen::Matrix<double, Eigen::Dynamic, 3> &osize,	Eigen::Matrix<double, Eigen::Dynamic, 1> &yaw){
+	numObs = staticObstacles.size()+this->dynamicObstaclesPos_.size();
+	cout<<"num obstacle: "<<numObs<<endl;
 	int numDynamicOb = this->dynamicObstaclesPos_.size();
 	int numStaticOb = staticObstacles.size();
-	oxyz.resize(numOb,3);
-	osize.resize(numOb,3);
-	cxyz.resize(numOb,3);
+	oxyz.resize(numObs,3);
+	osize.resize(numObs,3);
+	yaw.resize(numObs,1);
 	for(int i=0; i<numDynamicOb; i++){
 		oxyz(i,0) = this->dynamicObstaclesPos_[i](0);
 		oxyz(i,1) = this->dynamicObstaclesPos_[i](1);
 		oxyz(i,2) = this->dynamicObstaclesPos_[i](2);
-		osize(i,0) = this->dynamicObstaclesSize_[i](0);
-		osize(i,1) = this->dynamicObstaclesSize_[i](1);
-		osize(i,2) = this->dynamicObstaclesSize_[i](2);
-		cxyz(i,0) = this->currPos_(0);
-		cxyz(i,1) = this->currPos_(1);
-		cxyz(i,2) = this->currPos_(2);
+		osize(i,0) = this->dynamicObstaclesSize_[i](0)/2 + this->safetyDist_;
+		osize(i,1) = this->dynamicObstaclesSize_[i](1)/2 + this->safetyDist_;
+		osize(i,2) = this->dynamicObstaclesSize_[i](2)/2 + this->safetyDist_;
+		yaw(i,0) = 0.0;
 	}
 	for(int i=0; i<numStaticOb; i++){
 		oxyz(i+numDynamicOb,0) = staticObstacles[i].centroid(0);
 		oxyz(i+numDynamicOb,1) = staticObstacles[i].centroid(1);
 		oxyz(i+numDynamicOb,2) = staticObstacles[i].centroid(2);
-		osize(i+numDynamicOb,0) = staticObstacles[i].size(0);
-		osize(i+numDynamicOb,1) = staticObstacles[i].size(1);
-		osize(i+numDynamicOb,2) = staticObstacles[i].size(2);
-		cxyz(i+numDynamicOb,0) = this->currPos_(0);
-		cxyz(i+numDynamicOb,1) = this->currPos_(1);
-		cxyz(i+numDynamicOb,2) = this->currPos_(2);
+		osize(i+numDynamicOb,0) = staticObstacles[i].size(0)/2 + this->safetyDist_;
+		osize(i+numDynamicOb,1) = staticObstacles[i].size(1)/2 + this->safetyDist_;
+		osize(i+numDynamicOb,2) = staticObstacles[i].size(2)/2 + this->safetyDist_;
+		yaw(i+numDynamicOb,0) = staticObstacles[i].yaw;
 	}
 }
 
 int mpcPlanner::OSQPSolve(){
 	// set the preview window
     int mpcWindow = this->horizon_-1;
-	int numOb;
+	int numObs;
 
     // // allocate the dynamics matrices
     Eigen::Matrix<double, numStates, numStates> a;
@@ -1396,11 +1340,10 @@ int mpcPlanner::OSQPSolve(){
 
 	Eigen::Matrix<double, Eigen::Dynamic, 3> oxyz;
 	Eigen::Matrix<double, Eigen::Dynamic, 3> osize;
-	Eigen::Matrix<double, Eigen::Dynamic, 3> cxyz;
-	// std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
-	std::vector<staticObstacle> staticObstacles;
-	updateObstacleParam(staticObstacles, numOb, oxyz, osize, cxyz);
-	numOb = 0;
+	Eigen::Matrix<double, Eigen::Dynamic, 1> yaw;
+	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	// std::vector<staticObstacle> staticObstacles;
+	updateObstacleParam(staticObstacles, numObs, oxyz, osize, yaw);
     // set the initial and the desired states
     // x0 << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
     // xRef << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
@@ -1414,8 +1357,8 @@ int mpcPlanner::OSQPSolve(){
     castMPCToQPHessian(Q, R, mpcWindow, hessian);
     castMPCToQPGradient(Q, xRef, mpcWindow, gradient);
     // castMPCToQPConstraintMatrix(a, b, mpcWindow, linearMatrix);
-	castMPCToQPConstraintMatrix(a, b,constraintMatrix, numOb, mpcWindow, oxyz, osize, cxyz);
-    castMPCToQPConstraintVectors(xMax, xMin, uMax, uMin, x0, lowerBound, upperBound, numOb,mpcWindow,oxyz,osize,cxyz);
+	castMPCToQPConstraintMatrix(a, b,constraintMatrix, numObs, mpcWindow, oxyz, osize, yaw);
+    castMPCToQPConstraintVectors(xMax, xMin, uMax, uMin, x0, lowerBound, upperBound, numObs,mpcWindow,oxyz,osize,yaw);
     // // instantiate the solver
     OsqpEigen::Solver solver;
 	// OSQPWrapper::OptimizatorSolver solver;
@@ -1427,7 +1370,7 @@ int mpcPlanner::OSQPSolve(){
     // set the initial data of the QP solver
     solver.data()->setNumberOfVariables(numStates * (mpcWindow + 1) + numControls * mpcWindow);
     // solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1) + 3*(mpcWindow+1)+ numControls * mpcWindow + numOb*mpcWindow);
-    solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1));
+    solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow+numObs*mpcWindow);
     
 	if (!solver.data()->setHessianMatrix(hessian))
         return 0;
@@ -1450,45 +1393,25 @@ int mpcPlanner::OSQPSolve(){
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
 
-    // // number of iteration steps
-    // int numberOfSteps = 50;
 
-    // for (int i = 0; i < numberOfSteps; i++)
-    // {
+	// solve the QP problem
+	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
+		return 0;
 
-        // solve the QP problem
-        if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
-            return 0;
+	// get the controller input
 
-        // get the controller input
+	QPSolution = solver.getSolution();
+	this->currentControlsSol_.clear();
+	this->currentStatesSol_.clear();			
+	for (int i=0;i<mpcWindow+1;i++){
+			state = QPSolution.block(numStates*i, 0, numStates, 1);
+			this->currentStatesSol_.push_back(state);
+		}
+	for (int i=0;i<mpcWindow;i++){
+			control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
+			this->currentControlsSol_.push_back(control);
+		}
 
-        QPSolution = solver.getSolution();
-		this->currentControlsSol_.clear();
-		this->currentStatesSol_.clear();			
-		for (int i=0;i<mpcWindow+1;i++){
-				state = QPSolution.block(numStates*i, 0, numStates, 1);
-				this->currentStatesSol_.push_back(state);
-			}
-		for (int i=0;i<mpcWindow;i++){
-				control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
-				this->currentControlsSol_.push_back(control);
-			}
-		
-
-		
-        // ctr = QPSolution.block(12 * (mpcWindow + 1), 0, 4, 1);
-
-        // save data into file
-        // auto x0Data = x0.data();
-
-        // // propagate the model
-        // x0 = a * x0 + b * ctr;
-
-        // update the constraint bound
-        // updateConstraintVectors(x0, lowerBound, upperBound);
-        // if (!solver.updateBounds(lowerBound, upperBound))
-        //     return 1;
-    // }
 	this->firstTime_ = false;
     return 1;
 }
