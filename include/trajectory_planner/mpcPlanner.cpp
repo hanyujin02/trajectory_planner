@@ -1067,8 +1067,8 @@ void mpcPlanner::setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &x
 
 
 void mpcPlanner::setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double,numControls> &R){
-	Q.diagonal() << 10.0, 10.0, 10.0, 0, 0, 0;
-    R.diagonal() << 1.0, 1.0, 1.0;
+	Q.diagonal() << 2000.0, 2000.0, 2000.0, 0, 0, 0;
+    R.diagonal() << 200.0, 200.0, 200.0;
 }
 void mpcPlanner::castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix){
 	hessianMatrix.resize(numStates * (mpcWindow + 1) + numControls * mpcWindow,
@@ -1364,8 +1364,12 @@ int mpcPlanner::OSQPSolve(){
 	// OSQPWrapper::OptimizatorSolver solver;
 
     // // settings
+	double timeLimit = 1e-2;
     solver.settings()->setVerbosity(false);
     solver.settings()->setWarmStart(true);
+	solver.settings()->setTimeLimit(timeLimit);
+	// solver.settings()->setDualInfeasibilityTollerance();
+	// solver.settings()->setAdaptiveRho()
 
     // set the initial data of the QP solver
     solver.data()->setNumberOfVariables(numStates * (mpcWindow + 1) + numControls * mpcWindow);
@@ -1406,6 +1410,7 @@ int mpcPlanner::OSQPSolve(){
 	for (int i=0;i<mpcWindow+1;i++){
 			state = QPSolution.block(numStates*i, 0, numStates, 1);
 			this->currentStatesSol_.push_back(state);
+			// cout<<"velocity: "<< state(3) <<" "<< state(4) << " " << state(5) <<endl;
 		}
 	for (int i=0;i<mpcWindow;i++){
 			control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
