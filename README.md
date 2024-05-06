@@ -6,7 +6,7 @@ This repo has been tested on ROS Melodic with Ubuntu 18.04 and ROS Noetic with U
 sudo apt install ros-[melodic/noetic]-octomap* # octomap
 
 cd ~/catkin_ws/src
-git clone https://github.com/Zhefan-Xu/trajectory_planner.git
+git clone https://github.com/hanyujin02/trajectory_planner.git
 
 cd ~/catkin_ws
 catkin_make
