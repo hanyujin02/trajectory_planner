@@ -209,9 +209,8 @@ int main(int argc, char** argv){
 			// std::mutex m;
 			// std::condition_variable cv;
 			bool planSuccess;
-			planSuccess = mp->OSQPSolve();
 			// planSuccess = mp->makePlanCG();
-			// planSuccess = mp->makePlan();
+			planSuccess = mp->makePlan();
 			ros::Time mpcEndTime = ros::Time::now();
 			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
 			if (planSuccess){

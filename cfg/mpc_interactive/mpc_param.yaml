@@ -1,3 +1,5 @@
+using_ACADO: false
+using_OSQP: true
 horizon: 30
 z_range_min: 0.9
 z_range_max: 1.2
