@@ -1428,11 +1428,9 @@ int mpcPlanner::OSQPSolve(){
 	x0(3,0) = this->currVel_(0);
 	x0(4,0) = this->currVel_(1);
 	x0(5,0) = this->currVel_(2);
-	cout<<"x0 set"<<endl;
     std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 
 	getXRef(xRef, mpcWindow);
-	cout<<"xref set"<<endl;
     // allocate QP problem matrices and vectores
     Eigen::SparseMatrix<double> hessian;
     Eigen::VectorXd gradient;
