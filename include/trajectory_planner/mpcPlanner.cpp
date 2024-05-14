@@ -1515,7 +1515,6 @@ int mpcPlanner::OSQPSolve(){
 		}
 	for (int i=0;i<mpcWindow;i++){
 			control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
-			cout<<control(3)<<","<<control(4)<<endl;
 			this->currentControlsSol_.push_back(control);
 		}
 
