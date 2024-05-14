@@ -203,7 +203,7 @@ int main(int argc, char** argv){
 		ros::Time trajStartTime;
 		while (ros::ok() and ((currPos - goalPos).norm() >= 0.2 or t <= 1.0)){
 			ros::Time mpcStartTime = ros::Time::now();
-			mp->updateDynamicObstacles(obg->getObstaclePos(), obg->getObstacleVel(), obg->getObstacleSize());
+			// mp->updateDynamicObstacles(obg->getObstaclePos(), obg->getObstacleVel(), obg->getObstacleSize());
 			mp->updateCurrStates(currPos, currVel);
 			
 			// std::mutex m;
