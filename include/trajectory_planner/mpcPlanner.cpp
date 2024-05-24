@@ -5,7 +5,7 @@
 */
 
 #include <trajectory_planner/mpcPlanner.h>
-#include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
+// #include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
 
 namespace trajPlanner{
 	mpcPlanner::mpcPlanner(const ros::NodeHandle& nh) : nh_(nh){
@@ -18,20 +18,6 @@ namespace trajPlanner{
 	}
 
 	void mpcPlanner::initParam(){ 
-		if (not this->nh_.getParam(this->ns_ + "/using_ACADO", this->usingACADO_)){
-			this->usingACADO_ = false;
-			cout << this->hint_ << ": No using ACADO param. Use default: false" << endl;
-		}
-		else{
-			cout << this->hint_ << ": Using ACADO is set to: " << this->usingACADO_ << endl;
-		}	
-		if (not this->nh_.getParam(this->ns_ + "/using_OSQP", this->usingOSQP_)){
-			this->usingOSQP_ = true;
-			cout << this->hint_ << ": No using OSQP param. Use default: true" << endl;
-		}
-		else{
-			cout << this->hint_ << ": Using OSQP is set to: " << this->usingOSQP_ << endl;
-		}	
 		// planning horizon
 		if (not this->nh_.getParam(this->ns_ + "/horizon", this->horizon_)){
 			this->horizon_ = 20;
@@ -238,34 +224,19 @@ namespace trajPlanner{
 		this->lastRefStartIdx_ = 0;
 	}
 
-	void mpcPlanner::updateDynamicObstacles(const std::vector<std::vector<Eigen::Vector3d>>& obstaclesPos, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesVel, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesSize){
-		std::vector<std::vector<Eigen::Vector3d>> posTemp, sizeTemp;
-		posTemp.resize(obstaclesPos.size());
-		sizeTemp.resize(obstaclesSize.size());
+	void mpcPlanner::updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize){
+		this->dynamicObstaclesPos_.clear();
+		this->dynamicObstaclesSize_.clear();
+		this->dynamicObstaclesVel_.clear();
 		for (int i=0; i<int(obstaclesPos.size()); ++i){
-			for (int j=0; j<this->horizon_; ++j){
-				if (j > obstaclesPos[i].size()){
-					Eigen::Vector3d pos = obstaclesPos[i].back();
-					Eigen::Vector3d size = obstaclesSize[i].back();
-					pos(2) = (pos(2) + size(2)/2)/2;
-					size(2) = 2*pos(2);
-					posTemp[i].push_back(pos);
-					sizeTemp[i].push_back(size);
-				}
-				else{
-					Eigen::Vector3d pos = obstaclesPos[i][j];
-					Eigen::Vector3d size = obstaclesSize[i][j];
-					pos(2) = (pos(2) + size(2)/2)/2;
-					size(2) = 2*pos(2);
-					posTemp[i].push_back(pos);
-					sizeTemp[i].push_back(size);
-				}
-				
-			}
-            
+            Eigen::Vector3d pos = obstaclesPos[i];
+            Eigen::Vector3d size = obstaclesSize[i];
+            pos(2) = (pos(2) + size(2)/2)/2;
+			size(2) = 2*pos(2);
+			// pos(2) = pos(2)+size(2)/2;
+            this->dynamicObstaclesPos_.push_back(pos);
+			this->dynamicObstaclesSize_.push_back(size);
         }
-		this->dynamicObstaclesPos_ = posTemp;
-		this->dynamicObstaclesSize_ = sizeTemp;
 		this->dynamicObstaclesVel_ = obstaclesVel;
 	}
 
@@ -407,333 +378,333 @@ namespace trajPlanner{
 	// 	// std::cout.rdbuf(cout_buff);
 	// 	return true;
 	// }
-	bool mpcPlanner::makePlan(){
-		bool retVal;
-		if(this->usingOSQP_){
-			retVal = this->OSQPSolve();
-		}
-		else if (this->usingACADO_){
-			retVal = this->ACADOSolve();
-		}
+	// bool mpcPlanner::makePlan(){
+	// 	bool retVal;
+	// 	if (this->usingACADO_){
+	// 		retVal = this->ACADOSolve();
+	// 	}
+	// 	else{
+	// 		retVal = this->OSQPSolve();
+	// 	}
 		
-		return retVal;
-	}
+	// 	return retVal;
+	// }
 
-	bool mpcPlanner::ACADOSolve(){
-		int NUM_STEPS;
-		if (this->firstTime_){
-			NUM_STEPS = 10;
-		}
-		else{
-			NUM_STEPS = 1;
-		}
-		double maxTolerance = 1000;
-		int errorMessage;
-		std::vector<staticObstacle> staticObstaclesRaw = this->obclustering_->getStaticObstacles();
-		std::vector<staticObstacle> staticObstacles = this->sortStaticObstacles(staticObstaclesRaw);
-		if (this->firstTime_){
-			this->currentStatesSol_.clear();
-			this->currentControlsSol_.clear();
-			// acado_cleanup();
-			acado_initialize();
-		}
-		// Obtain reference trajectory
-		std::vector<Eigen::Vector3d> refTraj;
-		this->getReferenceTraj(refTraj);
-		for (int i = 0; i<ACADO_N; i++){
-			Eigen::Vector3d ref = refTraj[i];
-			acadoVariables.y[i*ACADO_NY] = ref(0);
-			acadoVariables.y[i*ACADO_NY+1] = ref(1);
-			acadoVariables.y[i*ACADO_NY+2] = ref(2);
-			for (int j = 3; j<ACADO_NY; j++){
-				acadoVariables.y[i*ACADO_NY+j] = 0.0;
-			}		
-		}
+	// bool mpcPlanner::ACADOSolve(){
+	// 	int NUM_STEPS;
+	// 	if (this->firstTime_){
+	// 		NUM_STEPS = 10;
+	// 	}
+	// 	else{
+	// 		NUM_STEPS = 1;
+	// 	}
+	// 	double maxTolerance = 1000;
+	// 	int errorMessage;
+	// 	std::vector<staticObstacle> staticObstaclesRaw = this->obclustering_->getStaticObstacles();
+	// 	std::vector<staticObstacle> staticObstacles = this->sortStaticObstacles(staticObstaclesRaw);
+	// 	if (this->firstTime_){
+	// 		this->currentStatesSol_.clear();
+	// 		this->currentControlsSol_.clear();
+	// 		// acado_cleanup();
+	// 		acado_initialize();
+	// 	}
+	// 	// Obtain reference trajectory
+	// 	std::vector<Eigen::Vector3d> refTraj;
+	// 	this->getReferenceTraj(refTraj);
+	// 	for (int i = 0; i<ACADO_N; i++){
+	// 		Eigen::Vector3d ref = refTraj[i];
+	// 		acadoVariables.y[i*ACADO_NY] = ref(0);
+	// 		acadoVariables.y[i*ACADO_NY+1] = ref(1);
+	// 		acadoVariables.y[i*ACADO_NY+2] = ref(2);
+	// 		for (int j = 3; j<ACADO_NY; j++){
+	// 			acadoVariables.y[i*ACADO_NY+j] = 0.0;
+	// 		}		
+	// 	}
 
-		Eigen::Vector3d refN = refTraj.back();
-		acadoVariables.yN[0] = refN(0);
-		acadoVariables.yN[1] = refN(1);
-		acadoVariables.yN[2] = refN(2);
-		// for (int i = 3; i < ACADO_NYN; i++){
-		// 	acadoVariables.yN[i] = 0.0;
-		// }
+	// 	Eigen::Vector3d refN = refTraj.back();
+	// 	acadoVariables.yN[0] = refN(0);
+	// 	acadoVariables.yN[1] = refN(1);
+	// 	acadoVariables.yN[2] = refN(2);
+	// 	// for (int i = 3; i < ACADO_NYN; i++){
+	// 	// 	acadoVariables.yN[i] = 0.0;
+	// 	// }
 
-		Eigen::VectorXd currentState(ACADO_NX);
-		currentState.setZero();
-		currentState(0) = this->currPos_(0);
-		currentState(1) = this->currPos_(1);
-		currentState(2) = this->currPos_(2);
-		currentState(3) = this->currVel_(0);
-		currentState(4) = this->currVel_(1);
-		currentState(5) = this->currVel_(2);
-		for (int i = 0; i < ACADO_NX; ++i){
-			acadoVariables.x0[ i ] = currentState(i);
-		} 
+	// 	Eigen::VectorXd currentState(ACADO_NX);
+	// 	currentState.setZero();
+	// 	currentState(0) = this->currPos_(0);
+	// 	currentState(1) = this->currPos_(1);
+	// 	currentState(2) = this->currPos_(2);
+	// 	currentState(3) = this->currVel_(0);
+	// 	currentState(4) = this->currVel_(1);
+	// 	currentState(5) = this->currVel_(2);
+	// 	for (int i = 0; i < ACADO_NX; ++i){
+	// 		acadoVariables.x0[ i ] = currentState(i);
+	// 	} 
 
 
 
-		// Update Obstacle Param
+	// 	// Update Obstacle Param
 
-		int numOb = 25;
-		int numDynamicOb = 4;
-		int numObParam;//7 for quadratic obstacle constraint, 4 for linear
-		int otherParam;//6 for quadratic obstacle constraint, 9 for linear
-		bool Linearize = false;
-		for (int i = 0; i< ACADO_N+1;i++){
-			int j,k;
-			j = 0; 
-			k = 0;
-			acadoVariables.od[i*ACADO_NOD]=this->zRangeMax_;//maxZ
-			acadoVariables.od[i*ACADO_NOD+1]=this->zRangeMin_;//minZ
-			acadoVariables.od[i*ACADO_NOD+2]=this->maxVel_;//maxVel	
-			acadoVariables.od[i*ACADO_NOD+3]=this->maxAcc_;//maxAcc	
-			double skLimitStatic = 1.0 - pow((1 - this->staticSlack_), 2);
-			double skLimitDynamic = 1.0 - pow((1 - this->dynamicSlack_), 2);	
-			acadoVariables.od[i*ACADO_NOD+4]=skLimitStatic;//slack limit
-			acadoVariables.od[i*ACADO_NOD+5]=skLimitDynamic;//slack limit	
+	// 	int numOb = 25;
+	// 	int numDynamicOb = 4;
+	// 	int numObParam;//7 for quadratic obstacle constraint, 4 for linear
+	// 	int otherParam;//6 for quadratic obstacle constraint, 9 for linear
+	// 	bool Linearize = false;
+	// 	for (int i = 0; i< ACADO_N+1;i++){
+	// 		int j,k;
+	// 		j = 0; 
+	// 		k = 0;
+	// 		acadoVariables.od[i*ACADO_NOD]=this->zRangeMax_;//maxZ
+	// 		acadoVariables.od[i*ACADO_NOD+1]=this->zRangeMin_;//minZ
+	// 		acadoVariables.od[i*ACADO_NOD+2]=this->maxVel_;//maxVel	
+	// 		acadoVariables.od[i*ACADO_NOD+3]=this->maxAcc_;//maxAcc	
+	// 		double skLimitStatic = 1.0 - pow((1 - this->staticSlack_), 2);
+	// 		double skLimitDynamic = 1.0 - pow((1 - this->dynamicSlack_), 2);	
+	// 		acadoVariables.od[i*ACADO_NOD+4]=skLimitStatic;//slack limit
+	// 		acadoVariables.od[i*ACADO_NOD+5]=skLimitDynamic;//slack limit	
 
-			if (Linearize){
-				numObParam = 4;
-				otherParam = 9;
-				// Linearized Obstacle Constraint
-				std::vector<std::vector<double>> obParam(numObParam,std::vector<double>(numOb)); 
-				double cx,cy,cz;
-				if(not this->firstTime_){
-					cx = this->currentStatesSol_[i](0);
-					cy = this->currentStatesSol_[i](1);
-					cz = this->currentStatesSol_[i](2);	
+	// 		if (Linearize){
+	// 			numObParam = 4;
+	// 			otherParam = 9;
+	// 			// Linearized Obstacle Constraint
+	// 			std::vector<std::vector<double>> obParam(numObParam,std::vector<double>(numOb)); 
+	// 			double cx,cy,cz;
+	// 			if(not this->firstTime_){
+	// 				cx = this->currentStatesSol_[i](0);
+	// 				cy = this->currentStatesSol_[i](1);
+	// 				cz = this->currentStatesSol_[i](2);	
 
-				}
-				else{
-					cx = this->currPos_(0);
-					cy = this->currPos_(1);
-					cz = this->currPos_(2);
-				}				
-				acadoVariables.od[i*ACADO_NOD+6] = cx;
-				acadoVariables.od[i*ACADO_NOD+7] = cy;
-				acadoVariables.od[i*ACADO_NOD+8] = cz;
-				// if (this->dynamicObstaclesPos_.size()>0){
-					for (j = 0; j<numDynamicOb;j++){
-						if (j>=this->dynamicObstaclesPos_.size()){
-							// j-=1;
-							// break;
-							obParam[0][j] = 100.0;
-							obParam[1][j] = 0.0;
-							obParam[2][j] = 0.0;
-							obParam[3][j] = 0.0;
-						}
-						else{
-							Eigen::Vector3d size = this->dynamicObstaclesSize_[j][i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-							Eigen::Vector3d pos = this->dynamicObstaclesPos_[j][i];
-							Eigen::Vector3d vel = this->dynamicObstaclesVel_[j][i];
-							double yaw = 0;
-							double fxyz,fxx,fyy,fzz;
-							fxyz = pow((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw), 2)/pow(size(0),2) + pow(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw), 2)/pow(size(1),2) + pow((cz-pos(2)), 2)/pow(size(2),2);
-							fxx = 2*((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw))/pow(size(0),2)*cos(yaw)+ 2*(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw))/pow(size(1),2)*(-sin(yaw));
-							fyy = 2*((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw))/pow(size(0),2)*sin(yaw)+ 2*(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw))/pow(size(1),2)*(cos(yaw));
-							fzz = 2*((cz-pos(2)))/pow(size(2),2);
-							obParam[0][j] = fxyz;
-							obParam[1][j] = fxx;
-							obParam[2][j] = fyy;
-							obParam[3][j] = fzz;
-						}	
-					}
-				// }
-				for (k = 0;k+numDynamicOb<numOb;k++){
-					if (k >= staticObstacles.size()){
-						double fxyz,fxx,fyy,fzz;
-						fxyz = 100;
-						fxx = 0;
-						fyy = 0;
-						fzz = 0;						
+	// 			}
+	// 			else{
+	// 				cx = this->currPos_(0);
+	// 				cy = this->currPos_(1);
+	// 				cz = this->currPos_(2);
+	// 			}				
+	// 			acadoVariables.od[i*ACADO_NOD+6] = cx;
+	// 			acadoVariables.od[i*ACADO_NOD+7] = cy;
+	// 			acadoVariables.od[i*ACADO_NOD+8] = cz;
+	// 			// if (this->dynamicObstaclesPos_.size()>0){
+	// 				for (j = 0; j<numDynamicOb;j++){
+	// 					if (j>=this->dynamicObstaclesPos_.size()){
+	// 						// j-=1;
+	// 						// break;
+	// 						obParam[0][j] = 100.0;
+	// 						obParam[1][j] = 0.0;
+	// 						obParam[2][j] = 0.0;
+	// 						obParam[3][j] = 0.0;
+	// 					}
+	// 					else{
+	// 						Eigen::Vector3d size = this->dynamicObstaclesSize_[j][i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 						Eigen::Vector3d pos = this->dynamicObstaclesPos_[j][i];
+	// 						Eigen::Vector3d vel = this->dynamicObstaclesVel_[j][i];
+	// 						double yaw = 0;
+	// 						double fxyz,fxx,fyy,fzz;
+	// 						fxyz = pow((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw), 2)/pow(size(0),2) + pow(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw), 2)/pow(size(1),2) + pow((cz-pos(2)), 2)/pow(size(2),2);
+	// 						fxx = 2*((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw))/pow(size(0),2)*cos(yaw)+ 2*(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw))/pow(size(1),2)*(-sin(yaw));
+	// 						fyy = 2*((cx-pos(0))*cos(yaw)+(cy-pos(1))*sin(yaw))/pow(size(0),2)*sin(yaw)+ 2*(-(cx-pos(0))*sin(yaw)+(cy-pos(1))*cos(yaw))/pow(size(1),2)*(cos(yaw));
+	// 						fzz = 2*((cz-pos(2)))/pow(size(2),2);
+	// 						obParam[0][j] = fxyz;
+	// 						obParam[1][j] = fxx;
+	// 						obParam[2][j] = fyy;
+	// 						obParam[3][j] = fzz;
+	// 					}	
+	// 				}
+	// 			// }
+	// 			for (k = 0;k+numDynamicOb<numOb;k++){
+	// 				if (k >= staticObstacles.size()){
+	// 					double fxyz,fxx,fyy,fzz;
+	// 					fxyz = 100;
+	// 					fxx = 0;
+	// 					fyy = 0;
+	// 					fzz = 0;						
 						
-						obParam[0][k+j] = fxyz;
-						obParam[1][k+j] = fxx;
-						obParam[2][k+j] = fyy;
-						obParam[3][k+j] = fzz;
-					}
-					else{
-						staticObstacle so = staticObstacles[k];
-						double yaw = so.yaw;
-						Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-						Eigen::Vector3d centroid = so.centroid;
-						double fxyz,fxx,fyy,fzz;
-						fxyz = pow((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw), 2)/pow(size(0),2) + pow(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw), 2)/pow(size(1),2) + pow((cz-centroid(2)), 2)/pow(size(2),2);
-						fxx = 2*((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw))/pow(size(0),2)*cos(yaw)+ 2*(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw))/pow(size(1),2)*(-sin(yaw));
-						fyy = 2*((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw))/pow(size(0),2)*sin(yaw)+ 2*(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw))/pow(size(1),2)*(cos(yaw));
-						fzz = 2*((cz-centroid(2)))/pow(size(2),2);
-						obParam[0][k+j] = fxyz;
-						obParam[1][k+j] = fxx;
-						obParam[2][k+j] = fyy;
-						obParam[3][k+j] = fzz;
-					}
-				}			
-				for (int m=0; m<obParam.size();m++){
-					std::vector<double> param = obParam[m];
-					for (int n=0; n<param.size();n++){
-						acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]=param[n];
-						// cout<<acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]<<endl;
-					}
-				}
-			}
-			else{	
-				numObParam = 7;
-				otherParam = 6;
-				//Quadratic Obstacle Contraint
-				std::vector<std::vector<double>> obParam(numObParam,std::vector<double>(numOb));
-				// if (this->dynamicObstaclesPos_.size()>0){
-					for (j = 0; j<numDynamicOb;j++){
-						if (j>=this->dynamicObstaclesPos_.size()){
-							// j-=1;
-							// break;
-							obParam[0][j]=0.0;
-							obParam[1][j]=0.0;
-							obParam[2][j]=0.0;
-							obParam[3][j]=0.001;
-							obParam[4][j]=0.001;
-							obParam[5][j]=0.001;
-							obParam[6][j]=0.0;
-						}
-						else{
-							Eigen::Vector3d size = this->dynamicObstaclesSize_[j][i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-							Eigen::Vector3d pos = this->dynamicObstaclesPos_[j][i];
-							Eigen::Vector3d vel = this->dynamicObstaclesVel_[j][i];
-							obParam[0][j]=pos(0);
-							obParam[1][j]=pos(1);
-							obParam[2][j]=pos(2);
-							obParam[3][j]=size(0);
-							obParam[4][j]=size(1);
-							obParam[5][j]=size(2);
-							obParam[6][j]=0.0;
-						}
-					}
-				// }
+	// 					obParam[0][k+j] = fxyz;
+	// 					obParam[1][k+j] = fxx;
+	// 					obParam[2][k+j] = fyy;
+	// 					obParam[3][k+j] = fzz;
+	// 				}
+	// 				else{
+	// 					staticObstacle so = staticObstacles[k];
+	// 					double yaw = so.yaw;
+	// 					Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 					Eigen::Vector3d centroid = so.centroid;
+	// 					double fxyz,fxx,fyy,fzz;
+	// 					fxyz = pow((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw), 2)/pow(size(0),2) + pow(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw), 2)/pow(size(1),2) + pow((cz-centroid(2)), 2)/pow(size(2),2);
+	// 					fxx = 2*((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw))/pow(size(0),2)*cos(yaw)+ 2*(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw))/pow(size(1),2)*(-sin(yaw));
+	// 					fyy = 2*((cx-centroid(0))*cos(yaw)+(cy-centroid(1))*sin(yaw))/pow(size(0),2)*sin(yaw)+ 2*(-(cx-centroid(0))*sin(yaw)+(cy-centroid(1))*cos(yaw))/pow(size(1),2)*(cos(yaw));
+	// 					fzz = 2*((cz-centroid(2)))/pow(size(2),2);
+	// 					obParam[0][k+j] = fxyz;
+	// 					obParam[1][k+j] = fxx;
+	// 					obParam[2][k+j] = fyy;
+	// 					obParam[3][k+j] = fzz;
+	// 				}
+	// 			}			
+	// 			for (int m=0; m<obParam.size();m++){
+	// 				std::vector<double> param = obParam[m];
+	// 				for (int n=0; n<param.size();n++){
+	// 					acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]=param[n];
+	// 					// cout<<acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]<<endl;
+	// 				}
+	// 			}
+	// 		}
+	// 		else{	
+	// 			numObParam = 7;
+	// 			otherParam = 6;
+	// 			//Quadratic Obstacle Contraint
+	// 			std::vector<std::vector<double>> obParam(numObParam,std::vector<double>(numOb));
+	// 			// if (this->dynamicObstaclesPos_.size()>0){
+	// 				for (j = 0; j<numDynamicOb;j++){
+	// 					if (j>=this->dynamicObstaclesPos_.size()){
+	// 						// j-=1;
+	// 						// break;
+	// 						obParam[0][j]=0.0;
+	// 						obParam[1][j]=0.0;
+	// 						obParam[2][j]=0.0;
+	// 						obParam[3][j]=0.001;
+	// 						obParam[4][j]=0.001;
+	// 						obParam[5][j]=0.001;
+	// 						obParam[6][j]=0.0;
+	// 					}
+	// 					else{
+	// 						Eigen::Vector3d size = this->dynamicObstaclesSize_[j][i]/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 						Eigen::Vector3d pos = this->dynamicObstaclesPos_[j][i];
+	// 						Eigen::Vector3d vel = this->dynamicObstaclesVel_[j][i];
+	// 						obParam[0][j]=pos(0);
+	// 						obParam[1][j]=pos(1);
+	// 						obParam[2][j]=pos(2);
+	// 						obParam[3][j]=size(0);
+	// 						obParam[4][j]=size(1);
+	// 						obParam[5][j]=size(2);
+	// 						obParam[6][j]=0.0;
+	// 					}
+	// 				}
+	// 			// }
 
-				for (k = 0;k+numDynamicOb<numOb;k++){
-					if (k >= staticObstacles.size()){
-							obParam[0][numDynamicOb+k]=0.0;
-							obParam[1][numDynamicOb+k]=0.0;
-							obParam[2][numDynamicOb+k]=0.0;
-							obParam[3][numDynamicOb+k]=0.001;
-							obParam[4][numDynamicOb+k]=0.001;
-							obParam[5][numDynamicOb+k]=0.001;
-							obParam[6][numDynamicOb+k]=0.0;
-					}
-					else{
-						staticObstacle so = staticObstacles[k];
-						double yaw = so.yaw;
-						Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
-						Eigen::Vector3d centroid = so.centroid;
-						obParam[0][numDynamicOb+k]=centroid(0);
-						obParam[1][numDynamicOb+k]=centroid(1);
-						obParam[2][numDynamicOb+k]=centroid(2);
-						obParam[3][numDynamicOb+k]=size(0);
-						obParam[4][numDynamicOb+k]=size(1);
-						obParam[5][numDynamicOb+k]=size(2);
-						obParam[6][numDynamicOb+k]=yaw;
-					}
-				}
-				for (int m=0; m<obParam.size();m++){
-					std::vector<double> param = obParam[m];
-					for (int n=0; n<param.size();n++){
-						acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]=param[n];
-					}
-				}
-			}
-		}
+	// 			for (k = 0;k+numDynamicOb<numOb;k++){
+	// 				if (k >= staticObstacles.size()){
+	// 						obParam[0][numDynamicOb+k]=0.0;
+	// 						obParam[1][numDynamicOb+k]=0.0;
+	// 						obParam[2][numDynamicOb+k]=0.0;
+	// 						obParam[3][numDynamicOb+k]=0.001;
+	// 						obParam[4][numDynamicOb+k]=0.001;
+	// 						obParam[5][numDynamicOb+k]=0.001;
+	// 						obParam[6][numDynamicOb+k]=0.0;
+	// 				}
+	// 				else{
+	// 					staticObstacle so = staticObstacles[k];
+	// 					double yaw = so.yaw;
+	// 					Eigen::Vector3d size = so.size/2 + Eigen::Vector3d (this->safetyDist_, this->safetyDist_, this->safetyDist_);
+	// 					Eigen::Vector3d centroid = so.centroid;
+	// 					obParam[0][numDynamicOb+k]=centroid(0);
+	// 					obParam[1][numDynamicOb+k]=centroid(1);
+	// 					obParam[2][numDynamicOb+k]=centroid(2);
+	// 					obParam[3][numDynamicOb+k]=size(0);
+	// 					obParam[4][numDynamicOb+k]=size(1);
+	// 					obParam[5][numDynamicOb+k]=size(2);
+	// 					obParam[6][numDynamicOb+k]=yaw;
+	// 				}
+	// 			}
+	// 			for (int m=0; m<obParam.size();m++){
+	// 				std::vector<double> param = obParam[m];
+	// 				for (int n=0; n<param.size();n++){
+	// 					acadoVariables.od[i*ACADO_NOD+otherParam+m*param.size()+n]=param[n];
+	// 				}
+	// 			}
+	// 		}
+	// 	}
 		
 		
 		
-		ros::Time solverStartTime = ros::Time::now();
-		double Tolerance;
-		int numIter = 0;
-		for (int iter =0;iter<NUM_STEPS;++iter){			
-			/* Prepare for the next step. */
-			acado_preparationStep();
-			/* Perform the feedback step. */
-			errorMessage = acado_feedbackStep();
-			// errorMessage = acado_solve();
-			ros::Time currentTime = ros::Time::now();
-			Tolerance = acado_getKKT();
-			if (Tolerance <= 1e-6 ){
-				break;
-			}			
-			else if ((currentTime-solverStartTime).toSec()>=0.03 and not this->firstTime_){
-				break;
-			}
-			// else if (errorMessage == 33){//when qp problem is infeasible
-			// 	break;
-			// }			
+	// 	ros::Time solverStartTime = ros::Time::now();
+	// 	double Tolerance;
+	// 	int numIter = 0;
+	// 	for (int iter =0;iter<NUM_STEPS;++iter){			
+	// 		/* Prepare for the next step. */
+	// 		acado_preparationStep();
+	// 		/* Perform the feedback step. */
+	// 		errorMessage = acado_feedbackStep();
+	// 		// errorMessage = acado_solve();
+	// 		ros::Time currentTime = ros::Time::now();
+	// 		Tolerance = acado_getKKT();
+	// 		if (Tolerance <= 1e-6 ){
+	// 			break;
+	// 		}			
+	// 		else if ((currentTime-solverStartTime).toSec()>=0.03 and not this->firstTime_){
+	// 			break;
+	// 		}
+	// 		// else if (errorMessage == 33){//when qp problem is infeasible
+	// 		// 	break;
+	// 		// }			
 			
-			numIter++;
-		}
-		// cout<<"number of iterations: "<<numIter<<endl;
-		// cout<<"num working set:  "<<acado_getNWSR()<<endl;
-		// acado_printDifferentialVariables();
-		// acado_printControlVariables();
-		if (errorMessage==0 or Tolerance <= maxTolerance ){
-			this->currentStatesSol_.clear();
-			this->currentControlsSol_.clear();
-			for (int i = 0; i<ACADO_N+1; i++){
-				Eigen::VectorXd xi(ACADO_NX);
-				for (int j = 0; j<ACADO_NX; j++){
-					xi(j) = acadoVariables.x[i*ACADO_NX+j];
-				}	
-				this->currentStatesSol_.push_back(xi);
-			}
-			for (int i = 0; i<ACADO_N; i++){
-				Eigen::VectorXd ci(ACADO_NU);
-				for (int j = 0; j<ACADO_NU; j++){
-					ci(j) = acadoVariables.u[i*ACADO_NU+j];
-				}		
-				this->currentControlsSol_.push_back(ci);
-			}		
-			this->firstTime_ = false;
-			// printf(acado_getErrorString(errorMessage));	
-			// printf("\n");
-			// cout<<"KKT Tolerance: "<<Tolerance<<endl;
-			return true;
-		}
-		else{
-			cout << this->hint_ << ": MPC solver failed. KKT tolerance: " << Tolerance << endl;
-			// acado_cleanup();
-			return false;
-		}
+	// 		numIter++;
+	// 	}
+	// 	// cout<<"number of iterations: "<<numIter<<endl;
+	// 	// cout<<"num working set:  "<<acado_getNWSR()<<endl;
+	// 	// acado_printDifferentialVariables();
+	// 	// acado_printControlVariables();
+	// 	if (errorMessage==0 or Tolerance <= maxTolerance ){
+	// 		this->currentStatesSol_.clear();
+	// 		this->currentControlsSol_.clear();
+	// 		for (int i = 0; i<ACADO_N+1; i++){
+	// 			Eigen::VectorXd xi(ACADO_NX);
+	// 			for (int j = 0; j<ACADO_NX; j++){
+	// 				xi(j) = acadoVariables.x[i*ACADO_NX+j];
+	// 			}	
+	// 			this->currentStatesSol_.push_back(xi);
+	// 		}
+	// 		for (int i = 0; i<ACADO_N; i++){
+	// 			Eigen::VectorXd ci(ACADO_NU);
+	// 			for (int j = 0; j<ACADO_NU; j++){
+	// 				ci(j) = acadoVariables.u[i*ACADO_NU+j];
+	// 			}		
+	// 			this->currentControlsSol_.push_back(ci);
+	// 		}		
+	// 		this->firstTime_ = false;
+	// 		// printf(acado_getErrorString(errorMessage));	
+	// 		// printf("\n");
+	// 		// cout<<"KKT Tolerance: "<<Tolerance<<endl;
+	// 		return true;
+	// 	}
+	// 	else{
+	// 		cout << this->hint_ << ": MPC solver failed. KKT tolerance: " << Tolerance << endl;
+	// 		// acado_cleanup();
+	// 		return false;
+	// 	}
 
-	}
+	// }
 
-	std::vector<staticObstacle> mpcPlanner::sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles){
-		if (staticObstacles.size()>21){
-			std::vector<staticObstacle> staticObstaclesTemp;
-			const int numOb = staticObstacles.size();
-			double distTemp[2][numOb] = {0};
+	// std::vector<staticObstacle> mpcPlanner::sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles){
+	// 	if (staticObstacles.size()>21){
+	// 		std::vector<staticObstacle> staticObstaclesTemp;
+	// 		const int numOb = staticObstacles.size();
+	// 		double distTemp[2][numOb] = {0};
 		
-			for (int i=0; i<numOb;i++){
-				staticObstacle ob = staticObstacles[i];
-				double dist = sqrt(pow(this->currPos_(0)-ob.centroid(0),2)+pow(this->currPos_(1)-ob.centroid(1),2)+pow(this->currPos_(2)-ob.centroid(2),2));
-				distTemp[0][i] = dist;
-				distTemp[1][i] = i;
-			}
+	// 		for (int i=0; i<numOb;i++){
+	// 			staticObstacle ob = staticObstacles[i];
+	// 			double dist = sqrt(pow(this->currPos_(0)-ob.centroid(0),2)+pow(this->currPos_(1)-ob.centroid(1),2)+pow(this->currPos_(2)-ob.centroid(2),2));
+	// 			distTemp[0][i] = dist;
+	// 			distTemp[1][i] = i;
+	// 		}
 
-			for(int i=0; i<numOb; i++){
-				for(int j=i+1; j<numOb; j++){
-					if (distTemp[0][i]>distTemp[0][j]){
-						double d = distTemp[0][i];
-						double idx = distTemp[1][i];
-						distTemp[0][i] = distTemp[0][j];
-						distTemp[1][i] = distTemp[1][j];
-						distTemp[0][j] = d;
-						distTemp[1][j] = idx;
-					}
-				}
-			}
-			for(int i=0; i<21; i++){
-				staticObstaclesTemp.push_back(staticObstacles[distTemp[1][i]]);
-			}
-			return staticObstaclesTemp;
-		}
-		return staticObstacles;
-	}
+	// 		for(int i=0; i<numOb; i++){
+	// 			for(int j=i+1; j<numOb; j++){
+	// 				if (distTemp[0][i]>distTemp[0][j]){
+	// 					double d = distTemp[0][i];
+	// 					double idx = distTemp[1][i];
+	// 					distTemp[0][i] = distTemp[0][j];
+	// 					distTemp[1][i] = distTemp[1][j];
+	// 					distTemp[0][j] = d;
+	// 					distTemp[1][j] = idx;
+	// 				}
+	// 			}
+	// 		}
+	// 		for(int i=0; i<21; i++){
+	// 			staticObstaclesTemp.push_back(staticObstacles[distTemp[1][i]]);
+	// 		}
+	// 		return staticObstaclesTemp;
+	// 	}
+	// 	return staticObstacles;
+	// }
 
 	void mpcPlanner::getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj){
 		// find the nearest position in the reference trajectory
@@ -869,15 +840,11 @@ namespace trajPlanner{
 	}
 
 	void mpcPlanner::visCB(const ros::TimerEvent&){
-		// ros::Time start = ros::Time::now();
-		// cout<<"[MPC Planner]: vis CB start time "<<start<<endl;
 		this->publishMPCTrajectory();
 		this->publishHistoricTrajectory();
 		this->publishLocalCloud();
 		this->publishStaticObstacles();
 		this->publishDynamicObstacles();
-		// ros::Time end = ros::Time::now();
-		// cout<<"[MPC Planner]: vis CB time "<<(end-start).toSec()<<endl;
 	}
 
 	void mpcPlanner::publishMPCTrajectory(){
@@ -1018,12 +985,12 @@ namespace trajPlanner{
 		    line.lifetime = ros::Duration(0.1);
 
 			for (int i = 0; i<this->dynamicObstaclesPos_.size();i++){
-				double x = this->dynamicObstaclesPos_[i][0](0); 
-				double y = this->dynamicObstaclesPos_[i][0](1); 
-				double z = this->dynamicObstaclesPos_[i][0](2);
-				double x_width = this->dynamicObstaclesSize_[i][0](0);
-				double y_width = this->dynamicObstaclesSize_[i][0](1);
-				double z_width = this->dynamicObstaclesSize_[i][0](2);
+				double x = this->dynamicObstaclesPos_[i](0); 
+				double y = this->dynamicObstaclesPos_[i](1); 
+				double z = this->dynamicObstaclesPos_[i](2);
+				double x_width = this->dynamicObstaclesSize_[i](0);
+				double y_width = this->dynamicObstaclesSize_[i](1);
+				double z_width = this->dynamicObstaclesSize_[i](2);
 				
 				std::vector<geometry_msgs::Point> verts;
 				geometry_msgs::Point p;
@@ -1088,29 +1055,6 @@ namespace trajPlanner{
 	}
 
 void mpcPlanner::setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B){
-	// TODO: set discretized dynamic matrices (use RK4)
-
-	// Eigen::MatrixXd Ac(numStates, numStates);
-	// Eigen::MatrixXd Bc(numStates, numControls);
-
-	// Ac << 0.,0.,0.,1.,0.,0.,
-	// 	  0.,0.,0.,0.,1.,0.,
-	// 	  0.,0.,0.,0.,0.,1.,
-	// 	  0.,0.,0.,0.,0.,0.,
-	// 	  0.,0.,0.,0.,0.,0.,
-	// 	  0.,0.,0.,0.,0.,0.;
-
-	// Bc << 0.,0.,0.,
-	// 	  0.,0.,0.,
-	// 	  0.,0.,0.,
-	// 	  1.,0.,0.,
-	// 	  0.,1.,0.,
-	// 	  0.,0.,1.;
-
-	// // discretize the continuous dynamics with matrix exponential
-	// // A << (Ac * this->ts_).exp();
-	
-	// B << Ac.inverse() * (A - Eigen::MatrixXd::Identity(numStates, numStates)) * Bc;
 	A.setZero();
     A.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
     A.block(0, 3, 3, 3) = Eigen::Matrix3d::Identity() * this->ts_;
@@ -1128,17 +1072,12 @@ void mpcPlanner::setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &x
     // state bound
 	xMin <<  -INFINITY, -INFINITY, this->zRangeMin_, -this->maxVel_, -this->maxVel_, -this->maxVel_, -INFINITY, -INFINITY;
     xMax << INFINITY, INFINITY, this->zRangeMax_, this->maxVel_, this->maxVel_, this->maxVel_, INFINITY, INFINITY;
-	// xMin <<  -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY, -INFINITY;
-    // xMax << INFINITY, INFINITY, INFINITY, INFINITY, INFINITY, INFINITY;
 
     // control bound
 	double skslimit = 1.0 - pow((1 - this->staticSlack_), 2);
 	double skdlimit = 1.0 - pow((1 - this->dynamicSlack_), 2);
     uMin << -this->maxAcc_, -this->maxAcc_, -this->maxAcc_, 0.0, 0.0;
     uMax << this->maxAcc_, this->maxAcc_, this->maxAcc_, skdlimit, skslimit;
-	// uMin << -INFINITY, -INFINITY, -INFINITY;
-    // uMax << INFINITY, INFINITY, INFINITY;
-
 }
 
 
@@ -1204,10 +1143,6 @@ void mpcPlanner::castMPCToQPConstraintMatrix(Eigen::Matrix<double, numStates, nu
 	Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, 
 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 	std::vector<std::vector<int>> &isDyamic){
-	// TODO: derive a Eigen::SparseMatrix<double> constraintMatrix
-	// constraintMatrix.resize(numStates * (mpcWindow+1) + 3 * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow,
-	//     					numStates * (mpcWindow+1) + numControls * mpcWindow);
-	// // constraintMatrix.setZero();
 	constraintMatrix.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numObs * mpcWindow,
 	    					numStates * (mpcWindow+1) + numControls * mpcWindow);
 	
@@ -1339,7 +1274,6 @@ void mpcPlanner::castMPCToQPConstraintVectors(Eigen::Matrix<double,numStates,1> 
 			// fyy = 2*(cy-oxyz(j,1))/pow(osize(j,1),2);
 			// fzz = 2*(cz-oxyz(j,2))/pow(osize(j,2),2);
 			lowerObstacle(i*numObs+j) = 1 - fxyz + fxx * cx + fyy * cy + fzz * cz;
-			// cout<<fxyz<<" "<<fxx<<" "<<fyy<<" "<<fzz<<" " <<endl;
 		}
 	}
 	
@@ -1374,12 +1308,12 @@ void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticOb
 		yaw[j].resize(numObs,1);
 		isDyamic[j].resize(numObs);
 		for(int i=0; i<numDynamicOb; i++){
-			oxyz[j](i,0) = this->dynamicObstaclesPos_[i][j](0);
-			oxyz[j](i,1) = this->dynamicObstaclesPos_[i][j](1);
-			oxyz[j](i,2) = this->dynamicObstaclesPos_[i][j](2);
-			osize[j](i,0) = this->dynamicObstaclesSize_[i][j](0)/2 + this->safetyDist_;
-			osize[j](i,1) = this->dynamicObstaclesSize_[i][j](1)/2 + this->safetyDist_;
-			osize[j](i,2) = this->dynamicObstaclesSize_[i][j](2)/2 + this->safetyDist_;
+			oxyz[j](i,0) = this->dynamicObstaclesPos_[i](0);
+			oxyz[j](i,1) = this->dynamicObstaclesPos_[i](1);
+			oxyz[j](i,2) = this->dynamicObstaclesPos_[i](2);
+			osize[j](i,0) = this->dynamicObstaclesSize_[i](0)/2 + this->safetyDist_;
+			osize[j](i,1) = this->dynamicObstaclesSize_[i](1)/2 + this->safetyDist_;
+			osize[j](i,2) = this->dynamicObstaclesSize_[i](2)/2 + this->safetyDist_;
 			yaw[j](i,0) = 0.0;
 			isDyamic[j][i] = 1;
 		}
@@ -1396,7 +1330,7 @@ void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticOb
 	}
 }
 
-int mpcPlanner::OSQPSolve(){
+bool mpcPlanner::makePlan(){
 	// set the preview window
 	if (this->firstTime_){
 		this->currentStatesSol_.clear();
@@ -1509,7 +1443,6 @@ int mpcPlanner::OSQPSolve(){
 	for (int i=0;i<mpcWindow+1;i++){
 			state = QPSolution.block(numStates*i, 0, numStates, 1);
 			this->currentStatesSol_.push_back(state);
-			// cout<<"velocity: "<< state(3) <<" "<< state(4) << " " << state(5) <<endl;
 		}
 	for (int i=0;i<mpcWindow;i++){
 			control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
