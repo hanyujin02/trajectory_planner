@@ -23,14 +23,12 @@
 #include <trajectory_planner/mpc_solver/acado_qpoases_interface.hpp>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
 // ACADOvariables acadoVariables;
 // ACADOworkspace acadoWorkspace;
 // USING_NAMESPACE_ACADO
 using std::cout; using std::endl;
 namespace trajPlanner{
-	const int numStates = 8;
-	const int numControls = 5;
-
 	class mpcPlanner{
 	private:
 		std::string ns_;
@@ -63,15 +61,15 @@ namespace trajPlanner{
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
 		std::vector<bboxVertex> refinedBBoxVertices_;
-		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos_;
-		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesVel_;
-		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize_;
+		std::vector<Eigen::Vector3d> dynamicObstaclesPos_;
+		std::vector<Eigen::Vector3d> dynamicObstaclesVel_;
+		std::vector<Eigen::Vector3d> dynamicObstaclesSize_;
 		// std::shared_ptr<OsqpEigen::Solver> solver_;
 
 
 		// parameters
-		bool usingACADO_;
-		bool usingOSQP_;
+		static const int numStates = 8;
+		static const int numControls = 5;
 		int horizon_;
 		double maxVel_ = 1.0;
 		double maxAcc_ = 1.0;
@@ -104,14 +102,15 @@ namespace trajPlanner{
 		void updateCurrStates(const Eigen::Vector3d& pos, const Eigen::Vector3d& vel);
 		void updatePath(const nav_msgs::Path& path, double ts);
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
-		void updateDynamicObstacles(const std::vector<std::vector<Eigen::Vector3d>>& obstaclesPos, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesVel, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesSize); // position, velocity, size
+		// void updateDynamicObstacles(const std::vector<std::vector<Eigen::Vector3d>>& obstaclesPos, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesVel, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesSize); // position, velocity, size
+		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		bool makePlan();
-		bool ACADOSolve();
+		// bool ACADOSolve();
 		// bool makePlanCG();
-		std::vector<staticObstacle> sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles);
+		// std::vector<staticObstacle> sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles);
 
 		// OSQP Solver Setup
-		int OSQPSolve(); //TODO
+		// int OSQPSolve(); //TODO
 		void setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B); //TODO
 		void setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &xMax, Eigen::Matrix<double, numStates, 1> &xMin, Eigen::Matrix<double, numControls, 1> &uMax, Eigen::Matrix<double, numControls, 1> &uMin); //TODO
 		// int findNearestPoseIndex(const Eigen::Matrix<double, numStates, 1>& x0);
@@ -132,6 +131,9 @@ namespace trajPlanner{
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw);
 
 		// void updateConstraintVectors(const Eigen::Matrix<double, 6, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound); //TODO
+		// void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
+		// 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
+		// 	std::vector<std::vector<int>> &isDyamic);
 		void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 			std::vector<std::vector<int>> &isDyamic);
