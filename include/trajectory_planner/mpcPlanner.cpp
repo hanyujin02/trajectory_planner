@@ -811,13 +811,13 @@ namespace trajPlanner{
 										 std::vector<std::vector<int>> &isDynamic){
 		isDynamic.clear();
 		isDynamic.resize(mpcWindow);
-		numObs = staticObstacles.size()+this->dynamicObstaclesPos_.size();
-		int numDynamicOb = this->dynamicObstaclesPos_.size();
-		int numStaticOb = staticObstacles.size();
+		int numDynamicOb = int(this->dynamicObstaclesPos_.size());
+		int numStaticOb = int(staticObstacles.size());
+		numObs = numDynamicOb + numStaticOb
 		oxyz.resize(mpcWindow);
 		osize.resize(mpcWindow);
 		yaw.resize(mpcWindow);
-		for(int j=0; j<mpcWindow;j++){
+		for(int j=0; j<mpcWindow; j++){
 			oxyz[j].resize(numObs,3);
 			osize[j].resize(numObs,3);
 			yaw[j].resize(numObs,1);
@@ -892,7 +892,6 @@ namespace trajPlanner{
 		std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> yaw;
 		std::vector<std::vector<int>> isDynamic;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
-		// std::vector<staticObstacle> staticObstacles;
 		this->updateObstacleParam(staticObstacles, numObs, mpcWindow, oxyz, osize, yaw, isDynamic);
 
 	    // set MPC problem quantities
