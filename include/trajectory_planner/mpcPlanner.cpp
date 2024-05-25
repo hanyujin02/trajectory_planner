@@ -5,7 +5,6 @@
 */
 
 #include <trajectory_planner/mpcPlanner.h>
-// #include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
 
 namespace trajPlanner{
 	mpcPlanner::mpcPlanner(const ros::NodeHandle& nh) : nh_(nh){
