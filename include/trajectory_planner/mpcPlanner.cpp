@@ -643,12 +643,6 @@ namespace trajPlanner{
 		}
 	}
 
-	void mpcPlanner::updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0,
-		Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound){
-		// TODO: update initial condition x0 in equality constraint
-		lowerBound.block(0,0,numStates,1) = -x0;
-	    upperBound.block(0,0,numStates,1) = -x0;
-	}
 	
 	void mpcPlanner::getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj){
 		// find the nearest position in the reference trajectory
