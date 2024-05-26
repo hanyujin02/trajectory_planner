@@ -117,7 +117,6 @@ namespace trajPlanner{
 								 std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, 
 								 std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 								 std::vector<std::vector<int>> &isDynamic);
-		void updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound);
 	
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
 
