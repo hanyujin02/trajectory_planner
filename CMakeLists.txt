@@ -170,10 +170,7 @@ add_library(
   include/${PROJECT_NAME}/mpc_solver/qpoases/SRC/Utils.cpp
   include/${PROJECT_NAME}/mpc_solver/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
-target_include_directories(${PROJECT_NAME}  PUBLIC
-   include/${PROJECT_NAME}/third_party/ACADO/acado 
-   include/${PROJECT_NAME}/third_party/ACADO
-)
+
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure

@@ -1,3 +1,9 @@
+/*
+*	File: mpc_node.cpp
+*	---------------
+*   MPC trajectory planning node
+*/
+
 #include <ros/ros.h>
 #include <trajectory_planner/mpcPlanner.h>
 #include <trajectory_planner/polyTrajOccMap.h>
@@ -116,7 +122,7 @@ int main(int argc, char** argv){
 
 	std::shared_ptr<trajPlanner::mpcPlanner> mp;
 	mp.reset(new trajPlanner::mpcPlanner (nh));
-	mp->updateMaxVel(desiredVel*1.5);
+	mp->updateMaxVel(desiredVel);
 	mp->updateMaxAcc(desiredAcc);
 	mp->setMap(map);
 
