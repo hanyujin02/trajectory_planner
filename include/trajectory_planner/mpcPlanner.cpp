@@ -683,7 +683,7 @@ namespace trajPlanner{
 	// 		// else if (errorMessage == 33){//when qp problem is infeasible
 	// 		// 	break;
 	// 		// }			
-			
+	
 	// 		numIter++;
 	// 	}
 	// 	// cout<<"number of iterations: "<<numIter<<endl;
@@ -718,7 +718,6 @@ namespace trajPlanner{
 	// 		// acado_cleanup();
 	// 		return false;
 	// 	}
-
 	// }
 
 	// std::vector<staticObstacle> mpcPlanner::sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles){
