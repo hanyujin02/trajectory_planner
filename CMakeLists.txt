@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   octomap_ros
   global_planner
   map_manager
+  dynamic_predictor
 )
 
 ## System dependencies are found with CMake's conventions
