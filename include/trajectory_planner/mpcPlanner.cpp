@@ -126,6 +126,7 @@ namespace trajPlanner{
 	void mpcPlanner::registerPub(){
 		this->mpcTrajVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/mpc_trajectory", 10);
 		this->mpcTrajHistVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/traj_history", 10);
+		this->candidateTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/candidate_trajectories", 10);
 		this->localCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/local_cloud", 10);
 		this->staticObstacleVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/static_obstacles", 10);
 		this->dynamicObstacleVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/dynamic_obstacles", 10);
@@ -228,17 +229,64 @@ namespace trajPlanner{
 		this->dynamicObstaclesPos_.clear();
 		this->dynamicObstaclesSize_.clear();
 		this->dynamicObstaclesVel_.clear();
+
+		this->dynamicObstaclesPos_.resize(obstaclesPos.size());
+		this->dynamicObstaclesSize_.resize(obstaclesPos.size());
+		this->dynamicObstaclesVel_.resize(obstaclesPos.size());
 		for (int i=0; i<int(obstaclesPos.size()); ++i){
-            Eigen::Vector3d pos = obstaclesPos[i];
+			Eigen::Vector3d pos = obstaclesPos[i];
             Eigen::Vector3d size = obstaclesSize[i];
+			Eigen::Vector3d vel = obstaclesVel[i];
             pos(2) = (pos(2) + size(2)/2)/2;
 			size(2) = 2*pos(2);
-			// pos(2) = pos(2)+size(2)/2;
-            this->dynamicObstaclesPos_.push_back(pos);
-			this->dynamicObstaclesSize_.push_back(size);
+			for (int j=0; j<this->horizon_; j++){
+				// pos(2) = pos(2)+size(2)/2;
+				this->dynamicObstaclesPos_[i].push_back(pos);
+				this->dynamicObstaclesSize_[i].push_back(size);
+				this->dynamicObstaclesVel_[i].push_back(vel);
+			}
         }
-		this->dynamicObstaclesVel_ = obstaclesVel;
+		// this->dynamicObstaclesVel_ = obstaclesVel;
 	}
+
+	void mpcPlanner::updatePredObstacles(const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predPos, const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predSize, const std::vector<Eigen::VectorXd> &intentProb){
+		if (predPos.size()){
+			this->obPredPos_ = predPos;
+			this->obPredSize_ = predSize;
+			this->obIntentProb_ = intentProb;
+
+			this->dynamicObstaclesPos_.clear();
+			this->dynamicObstaclesSize_.clear();
+			for (int i=0;i<int(this->obPredPos_.size());i++){
+				for (int j=0;j<int(this->obPredPos_[i].size());j++){
+					for (int k=0;k<int(this->obPredPos_[i][j].size());k++){
+						this->obPredPos_[i][j][k](2) = (this->obPredPos_[i][j][k](2) + this->obPredSize_[i][j][k](2)/2)/2;
+						this->obPredSize_[i][j][k](2) = 2*this->obPredPos_[i][j][k](2);
+					}
+				}
+			}
+			this->dynamicObstaclesPos_.resize(this->obPredPos_.size());
+			this->dynamicObstaclesSize_.resize(this->obPredPos_.size());
+			for (int i=0;i<int(this->obPredPos_.size());i++){
+				Eigen::Vector3d pos, size;
+				pos = this->obPredPos_[i][0][0];
+				size = this->obPredSize_[i][0][0];
+				for (int j=0; j<this->horizon_; j++){
+					this->dynamicObstaclesPos_[i].push_back(pos);
+					this->dynamicObstaclesSize_[i].push_back(size);
+				}
+			}
+		}
+		else{
+			this->dynamicObstaclesPos_.clear();
+			this->dynamicObstaclesSize_.clear();
+			this->obPredPos_.clear();
+			this->obPredSize_.clear();
+			this->obIntentProb_.clear();
+		}
+	}
+
+		
 
 
 	// bool mpcPlanner::makePlan(){
@@ -841,6 +889,7 @@ namespace trajPlanner{
 
 	void mpcPlanner::visCB(const ros::TimerEvent&){
 		this->publishMPCTrajectory();
+		this->publishCandidateTrajectory();
 		this->publishHistoricTrajectory();
 		this->publishLocalCloud();
 		this->publishStaticObstacles();
@@ -852,6 +901,65 @@ namespace trajPlanner{
 			nav_msgs::Path traj;
 			this->getTrajectory(traj);
 			this->mpcTrajVisPub_.publish(traj);
+		}
+	}
+
+	void mpcPlanner::publishCandidateTrajectory(){
+		if (not this->firstTime_){
+			if (this->candidateStates_.size() != 0){
+				visualization_msgs::MarkerArray trajMsg;
+				int countMarker = 0;
+				for (int i=0; i<int(this->candidateStates_.size()); ++i){
+					visualization_msgs::Marker text;
+					text.header.frame_id = "map";
+					text.header.stamp = ros::Time::now();
+					text.ns = this->ns_;
+					text.id = countMarker;
+					text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+					text.lifetime = ros::Duration(0.1);
+					// text.action = visualization_msgs::Marker::ADD;
+					
+					text.pose.position.x = this->candidateStates_[i].back()(0);
+					text.pose.position.y = this->candidateStates_[i].back()(1);
+					text.pose.position.z = this->candidateStates_[i].back()(2);
+					
+					text.scale.z = 0.5;  
+					text.color.r = 1.0;
+					text.color.g = 0.0;
+					text.color.b = 1.0;
+					text.color.a = 1.0;
+					
+					std::string message = "score: "+std::to_string(this->trajWeightedScore_[i]) + "consistent: " + std::to_string(this->trajScore_[i](0))
+					+ "detour: " + std::to_string(this->trajScore_[i](1))+ "safty: " + std::to_string(this->trajScore_[i](2));
+					text.text = message;
+
+					trajMsg.markers.push_back(text);
+					++countMarker;
+					visualization_msgs::Marker traj;
+					traj.header.frame_id = "map";
+					traj.header.stamp = ros::Time::now();
+					traj.ns = this->ns_;
+					traj.id = countMarker;
+					traj.type = visualization_msgs::Marker::LINE_STRIP;
+					traj.scale.x = 0.1;
+					traj.scale.y = 0.1;
+					traj.scale.z = 0.1;
+					traj.color.a = 0.4;
+					traj.color.r = 1.0;
+					traj.color.g = 0.0;
+					traj.color.b = 1.0;
+					traj.lifetime = ros::Duration(0.1);
+					for (int j=0; j<int(this->candidateStates_[i].size());j++){
+						geometry_msgs::Point p;
+						Eigen::VectorXd state = this->candidateStates_[i][j];
+						p.x = state(0); p.y = state(1); p.z = state(2);
+						traj.points.push_back(p);
+						++countMarker;
+						trajMsg.markers.push_back(traj);
+					}
+				}
+				this->candidateTrajPub_.publish(trajMsg);
+			}
 		}
 	}
 
@@ -985,12 +1093,12 @@ namespace trajPlanner{
 		    line.lifetime = ros::Duration(0.1);
 
 			for (int i = 0; i<this->dynamicObstaclesPos_.size();i++){
-				double x = this->dynamicObstaclesPos_[i](0); 
-				double y = this->dynamicObstaclesPos_[i](1); 
-				double z = this->dynamicObstaclesPos_[i](2);
-				double x_width = this->dynamicObstaclesSize_[i](0);
-				double y_width = this->dynamicObstaclesSize_[i](1);
-				double z_width = this->dynamicObstaclesSize_[i](2);
+				double x = this->dynamicObstaclesPos_[i][0](0); 
+				double y = this->dynamicObstaclesPos_[i][0](1); 
+				double z = this->dynamicObstaclesPos_[i][0](2);
+				double x_width = this->dynamicObstaclesSize_[i][0](0);
+				double y_width = this->dynamicObstaclesSize_[i][0](1);
+				double z_width = this->dynamicObstaclesSize_[i][0](2);
 				
 				std::vector<geometry_msgs::Point> verts;
 				geometry_msgs::Point p;
@@ -1098,6 +1206,12 @@ void mpcPlanner::castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates
             if (value != 0)
                 hessianMatrix.insert(i, i) = value;
         } 
+		// else if (i>=numStates * (mpcWindow) and i < numStates*(mpcWindow+1)){
+		// 	int posQ = i % numStates;
+        //     float value = 10*Q.diagonal()[posQ];
+        //     if (value != 0)
+        //         hessianMatrix.insert(i, i) = value;
+		// }
 		else{
             int posR = i % numControls;
             float value = R.diagonal()[posR];
@@ -1112,6 +1226,8 @@ void mpcPlanner::castMPCToQPGradient(const Eigen::DiagonalMatrix<double,numState
 		Eigen::Matrix<double, numStates, 1> ref = Q * (-xRef[i]);
 		Qx_ref.push_back(ref);
 	}
+	// Eigen::Matrix<double, numStates, 1> refT = 10*Q * (-xRef.back());
+	// 	Qx_ref.push_back(refT);
 
     // populate the gradient vector
     gradient = Eigen::VectorXd::Zero(numStates * (mpcWindow + 1) + numControls * mpcWindow, 1);
@@ -1291,13 +1407,13 @@ void mpcPlanner::updateConstraintVectors(const Eigen::Matrix<double, numStates, 
     upperBound.block(0,0,numStates,1) = -x0;
 }
 
-void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
+void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, int &numObs, int mpcWindow, 
 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 	std::vector<std::vector<int>> &isDyamic){
 	isDyamic.clear();
 	isDyamic.resize(mpcWindow);
-	numObs = staticObstacles.size()+this->dynamicObstaclesPos_.size();
-	int numDynamicOb = this->dynamicObstaclesPos_.size();
+	numObs = staticObstacles.size()+dynamicObstaclesPos.size();
+	int numDynamicOb = dynamicObstaclesPos.size();
 	int numStaticOb = staticObstacles.size();
 	oxyz.resize(mpcWindow);
 	osize.resize(mpcWindow);
@@ -1308,14 +1424,26 @@ void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticOb
 		yaw[j].resize(numObs,1);
 		isDyamic[j].resize(numObs);
 		for(int i=0; i<numDynamicOb; i++){
-			oxyz[j](i,0) = this->dynamicObstaclesPos_[i](0);
-			oxyz[j](i,1) = this->dynamicObstaclesPos_[i](1);
-			oxyz[j](i,2) = this->dynamicObstaclesPos_[i](2);
-			osize[j](i,0) = this->dynamicObstaclesSize_[i](0)/2 + this->safetyDist_;
-			osize[j](i,1) = this->dynamicObstaclesSize_[i](1)/2 + this->safetyDist_;
-			osize[j](i,2) = this->dynamicObstaclesSize_[i](2)/2 + this->safetyDist_;
-			yaw[j](i,0) = 0.0;
-			isDyamic[j][i] = 1;
+			if (j<dynamicObstaclesPos[i].size()){
+				oxyz[j](i,0) = dynamicObstaclesPos[i][j](0);
+				oxyz[j](i,1) = dynamicObstaclesPos[i][j](1);
+				oxyz[j](i,2) = dynamicObstaclesPos[i][j](2);
+				osize[j](i,0) = dynamicObstaclesSize[i][j](0)/2 + this->safetyDist_;
+				osize[j](i,1) = dynamicObstaclesSize[i][j](1)/2 + this->safetyDist_;
+				osize[j](i,2) = dynamicObstaclesSize[i][j](2)/2 + this->safetyDist_;
+				yaw[j](i,0) = 0.0;
+				isDyamic[j][i] = 1;
+			}
+			else{
+				oxyz[j](i,0) = dynamicObstaclesPos[i].back()(0);
+				oxyz[j](i,1) = dynamicObstaclesPos[i].back()(1);
+				oxyz[j](i,2) = dynamicObstaclesPos[i].back()(2);
+				osize[j](i,0) = dynamicObstaclesSize[i].back()(0)/2 + this->safetyDist_;
+				osize[j](i,1) = dynamicObstaclesSize[i].back()(1)/2 + this->safetyDist_;
+				osize[j](i,2) = dynamicObstaclesSize[i].back()(2)/2 + this->safetyDist_;
+				yaw[j](i,0) = 0.0;
+				isDyamic[j][i] = 1;
+			}
 		}
 		for(int i=0; i<numStaticOb; i++){
 			oxyz[j](i+numDynamicOb,0) = staticObstacles[i].centroid(0);
@@ -1330,12 +1458,13 @@ void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticOb
 	}
 }
 
-bool mpcPlanner::makePlan(){
+bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
+	std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol){
 	// set the preview window
-	if (this->firstTime_){
-		this->currentStatesSol_.clear();
-		this->currentControlsSol_.clear();
-	}
+	// if (this->firstTime_){
+	// 	this->currentStatesSol_.clear();
+	// 	this->currentControlsSol_.clear();
+	// }
     int mpcWindow = this->horizon_-1;
 	int numObs;
 
@@ -1376,9 +1505,9 @@ bool mpcPlanner::makePlan(){
 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> osize;
 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> yaw;
 	std::vector<std::vector<int>> isDynamic;
-	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	// std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
 	// std::vector<staticObstacle> staticObstacles;
-	updateObstacleParam(staticObstacles, numObs, mpcWindow, oxyz, osize, yaw, isDynamic);
+	updateObstacleParam(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, numObs, mpcWindow, oxyz, osize, yaw, isDynamic);
 
     // set MPC problem quantities
     setDynamicsMatrices(a, b);
@@ -1397,18 +1526,16 @@ bool mpcPlanner::makePlan(){
 
     // // settings
     solver.settings()->setVerbosity(false);
-    solver.settings()->setWarmStart(true);
+    solver.settings()->setWarmStart(false);
 	// solver.settings()->setTimeLimit(0.01);
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-5);
 	// solver.settings()->setDualInfeasibilityTollerance();
 	// solver.settings()->setAdaptiveRho()
-
     // set the initial data of the QP solver
     solver.data()->setNumberOfVariables(numStates * (mpcWindow + 1) + numControls * mpcWindow);
     // solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1) + 3*(mpcWindow+1)+ numControls * mpcWindow + numOb*mpcWindow);
     solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow+numObs*mpcWindow);
-    
 	if (!solver.data()->setHessianMatrix(hessian))
         return 0;
     if (!solver.data()->setGradient(gradient))
@@ -1430,27 +1557,255 @@ bool mpcPlanner::makePlan(){
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
 
-
 	// solve the QP problem
 	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
 		return 0;
 
-	// get the controller input
+	// if (solver.workspace()->info->solve_time>0.015){
+	// 	return 0;
+	// }
 
 	QPSolution = solver.getSolution();
-	this->currentControlsSol_.clear();
-	this->currentStatesSol_.clear();			
+	controlsSol.clear();
+	statesSol.clear();			
 	for (int i=0;i<mpcWindow+1;i++){
 			state = QPSolution.block(numStates*i, 0, numStates, 1);
-			this->currentStatesSol_.push_back(state);
+			statesSol.push_back(state);
 		}
 	for (int i=0;i<mpcWindow;i++){
 			control = QPSolution.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1);
-			this->currentControlsSol_.push_back(control);
+			controlsSol.push_back(control);
 		}
 
-	this->firstTime_ = false;
+	// this->firstTime_ = false;
     return 1;
 }
 
+bool mpcPlanner::makePlan(){
+	if (this->firstTime_){
+		this->currentStatesSol_.clear();
+		this->currentControlsSol_.clear();
+	}
+	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	bool successSolve = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, this->currentStatesSol_, this->currentControlsSol_);
+	if (successSolve){
+		this->firstTime_ = false;
+	}
+	return successSolve;
+}
+
+bool mpcPlanner::makePlanWithPred(){
+	this->candidateStates_.clear();
+	this->candidateControls_.clear();
+	this->trajWeightedScore_.clear();
+	this->trajScore_.clear();
+	std::vector<Eigen::Vector3d> trajScore;
+	std::vector<int> intentType;
+	if (this->firstTime_){
+		this->currentStatesSol_.clear();
+		this->currentControlsSol_.clear();
+	}
+	int obIdx;
+	std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesPosComb;
+	std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesSizeComb;
+	bool validTraj;
+	std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	if (this->obPredPos_.size()){
+		this->getIntentComb(obIdx, obstaclesPosComb, obstaclesSizeComb);
+		bool successSolve;
+		for (int i=0; i<int(obstaclesPosComb.size());i++){
+			std::vector<Eigen::VectorXd> statesSol;
+			std::vector<Eigen::VectorXd> controlsSol;
+			successSolve = this->solveTraj(staticObstacles, obstaclesPosComb[i], obstaclesSizeComb[i], statesSol, controlsSol);
+			if (successSolve){
+				this->candidateStates_.push_back(statesSol);
+				this->candidateControls_.push_back(controlsSol);
+				Eigen::Vector3d score;
+				score = this->getTrajectoryScore(statesSol, controlsSol, obstaclesPosComb[i], obstaclesSizeComb[i]);
+				trajScore.push_back(score);
+				intentType.push_back(i);
+			}
+		}
+		if (this->candidateStates_.size()){
+			this->firstTime_ = false;
+			validTraj = true;
+			// get best traj
+			int bestTrajIdx = evaluateTraj(trajScore, obIdx, intentType);
+			this->currentStatesSol_ = this->candidateStates_[bestTrajIdx];
+			this->currentControlsSol_ = this->candidateControls_[bestTrajIdx];
+			this->trajScore_ = trajScore;
+		}
+		else{
+			validTraj = false;
+		}
+		
+	}
+	else{
+		validTraj = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, this->currentStatesSol_, this->currentControlsSol_);
+		if (validTraj){
+			this->firstTime_ = false;
+		}
+	}
+	return validTraj;
+}
+
+void mpcPlanner::findClosestObstacle(int &obIdx){
+	double minDist = INFINITY;
+	obIdx = -1;
+	for (int i=0;i<int(this->dynamicObstaclesPos_.size());i++){
+		double dist = (this->dynamicObstaclesPos_[i][0]-this->currPos_).norm();
+		if (dist < minDist){
+			minDist = dist;
+			obIdx = i;
+		}
+	}
+}
+
+void mpcPlanner::getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize){
+	intentCombPos.clear();
+	intentCombSize.clear();
+	this->findClosestObstacle(obIdx);
+	intentCombPos.resize(6);
+	intentCombSize.resize(6);
+
+
+	// for closest obstacle, find 6 intent combinations
+	intentCombPos[dynamicPredictor::STOP].push_back(this->obPredPos_[obIdx][dynamicPredictor::STOP]);
+	intentCombPos[dynamicPredictor::LEFT].push_back(this->obPredPos_[obIdx][dynamicPredictor::LEFT]);
+	intentCombPos[dynamicPredictor::RIGHT].push_back(this->obPredPos_[obIdx][dynamicPredictor::RIGHT]);
+	intentCombPos[dynamicPredictor::FORWARD].push_back(this->obPredPos_[obIdx][dynamicPredictor::FORWARD]);
+
+	intentCombPos[dynamicPredictor::LEFT+dynamicPredictor::FORWARD].push_back(this->obPredPos_[obIdx][dynamicPredictor::LEFT]);
+	intentCombPos[dynamicPredictor::LEFT+dynamicPredictor::FORWARD].push_back(this->obPredPos_[obIdx][dynamicPredictor::FORWARD]);
+
+	intentCombPos[dynamicPredictor::RIGHT+dynamicPredictor::FORWARD].push_back(this->obPredPos_[obIdx][dynamicPredictor::RIGHT]);
+	intentCombPos[dynamicPredictor::RIGHT+dynamicPredictor::FORWARD].push_back(this->obPredPos_[obIdx][dynamicPredictor::FORWARD]);
+
+	intentCombSize[dynamicPredictor::STOP].push_back(this->obPredSize_[obIdx][dynamicPredictor::STOP]);
+	intentCombSize[dynamicPredictor::LEFT].push_back(this->obPredSize_[obIdx][dynamicPredictor::LEFT]);
+	intentCombSize[dynamicPredictor::RIGHT].push_back(this->obPredSize_[obIdx][dynamicPredictor::RIGHT]);
+	intentCombSize[dynamicPredictor::FORWARD].push_back(this->obPredSize_[obIdx][dynamicPredictor::FORWARD]);
+
+	intentCombSize[dynamicPredictor::LEFT+dynamicPredictor::FORWARD].push_back(this->obPredSize_[obIdx][dynamicPredictor::LEFT]);
+	intentCombSize[dynamicPredictor::LEFT+dynamicPredictor::FORWARD].push_back(this->obPredSize_[obIdx][dynamicPredictor::FORWARD]);
+
+	intentCombSize[dynamicPredictor::RIGHT+dynamicPredictor::FORWARD].push_back(this->obPredSize_[obIdx][dynamicPredictor::RIGHT]);
+	intentCombSize[dynamicPredictor::RIGHT+dynamicPredictor::FORWARD].push_back(this->obPredSize_[obIdx][dynamicPredictor::FORWARD]);
+
+	// for rest of obstacles, use maximum intent
+	for (int i=0;i<int(intentCombPos.size());i++){
+		for (int j=0;j<int(this->obPredPos_.size());j++){
+			if (j != obIdx){
+				int maxIntent;
+				double maxProb = this->obIntentProb_[j].maxCoeff(&maxIntent);
+				intentCombPos[i].push_back(this->obPredPos_[j][maxIntent]);
+				intentCombSize[i].push_back(this->obPredSize_[j][maxIntent]);
+			}
+		}
+	}	
+
+}
+
+Eigen::Vector3d mpcPlanner::getTrajectoryScore(const std::vector<Eigen::VectorXd> &states, const std::vector<Eigen::VectorXd> &controls, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
+	Eigen::Vector3d score;
+	double consistencyScore = this->getConsistencyScore(states);
+	double detourScore = this->getDetourScore(states);
+	double saftyScore = this->getSaftyScore(states, obstaclePos, obstacleSize);
+	score<<consistencyScore, detourScore, saftyScore;
+	return score;
+}
+
+double mpcPlanner::getConsistencyScore(const std::vector<Eigen::VectorXd> &state){
+	if (this->firstTime_){
+		return 0;
+	}
+	else{
+		double totalDist = 0;
+		for (int i=0;i<int(state.size());i++){
+			Eigen::Vector3d prevPos;
+			prevPos<<this->currentStatesSol_[i](0), this->currentStatesSol_[i](1), this->currentStatesSol_[i](2);
+			Eigen::Vector3d pos;
+			pos<<state[i](0), state[i](1), state[i](2);
+			totalDist += (prevPos-pos).norm();
+		}
+		totalDist /= state.size();
+		return totalDist;
+	}
+}
+
+double mpcPlanner::getDetourScore(const std::vector<Eigen::VectorXd> &state){
+	std::vector<Eigen::Matrix<double, numStates, 1>> ref;
+	this->getXRef(ref, state.size());
+
+	double totalDist = 0;
+	for (int i=0;i<int(state.size());i++){
+		Eigen::Vector3d refPos;
+		refPos<<ref[i](0,0), ref[i](1,0), ref[i](2,0);
+		Eigen::Vector3d pos;
+		pos<<state[i](0), state[i](1), state[i](2);
+		totalDist += (refPos-pos).norm();
+	}
+	totalDist /= state.size();
+	return totalDist;
+}
+
+double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
+	double totalDist = 0;
+	for (int i=0;i<state.size();i++){
+		Eigen::Vector3d pos;
+		pos<<state[i](0),state[i](1),state[i](2);
+		double dist = 0;
+		for (int j=0;j<int(obstaclePos.size());j++){
+			double d = (pos-obstaclePos[j][i]).norm();
+			// double weightedD = d*(1-tanh(atanh(0.5)/(this->safetyDist_+0.5)*d));
+			dist += d;
+		}
+		dist /= obstaclePos.size();
+		totalDist += dist;
+	}
+	totalDist /= state.size();
+	return totalDist;
+
+}
+
+int mpcPlanner::evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int &obIdx, const std::vector<int> &intentType){
+	cout<<"evaluate"<<endl;
+	this->trajWeightedScore_.clear();
+	std::vector<double> consistentScore, detourScore, safetyScore;
+	for (int i=0;i<int(trajScore.size());i++){
+		Eigen::Vector3d score = trajScore[i];
+		consistentScore.push_back(score(0));
+		detourScore.push_back(score(1));
+		safetyScore.push_back(score(2));
+	}
+	// remap score
+	double consistentAvg = std::accumulate(consistentScore.begin(), consistentScore.end(), 0.0)/consistentScore.size();
+	double detourAvg = std::accumulate(detourScore.begin(), detourScore.end(),0.0)/detourScore.size();
+	double safetyAvg = std::accumulate(safetyScore.begin(), safetyScore.end(), 0.0)/safetyScore.size();
+	for (int i=0;i<int(consistentScore.size());i++){
+		consistentScore[i] = consistentAvg/consistentScore[i];
+		detourScore[i] = detourAvg/detourScore[i];
+		safetyScore[i] = safetyScore[i]/safetyAvg;
+	}
+	Eigen::VectorXd weight;
+	weight.resize(6);
+	weight<<this->obIntentProb_[obIdx](dynamicPredictor::STOP), this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 
+			this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
+			this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
+			this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD);
+
+	Eigen::VectorXd weightedScore;
+	weightedScore.resize(consistentScore.size());
+	for (int i=0;i<int(consistentScore.size());i++){
+		weightedScore(i) = weight(intentType[i])*(1*consistentScore[i] + 1*detourScore[i] + 1*safetyScore[i]);
+		this->trajWeightedScore_.push_back(weightedScore(i));
+	}
+	int bestTrajIdx;
+	int maxWeightIdx;
+	double s = weightedScore.maxCoeff(&bestTrajIdx);
+	double w = weight.maxCoeff(&maxWeightIdx);
+	cout<<"best score: "<<s<<"best idx:"<<bestTrajIdx<<endl;
+	cout<<"highest weight"<<w<<"idx: "<<maxWeightIdx<<endl;
+	return bestTrajIdx;
+}
 }

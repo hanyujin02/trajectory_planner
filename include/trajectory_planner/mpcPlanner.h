@@ -17,6 +17,7 @@
 #include <trajectory_planner/clustering/obstacleClustering.h>
 #include <trajectory_planner/utils.h>
 #include <map_manager/occupancyMap.h>
+#include <dynamic_predictor/utils.h>
 // #include <trajectory_planner/mpc_solver/acado_common.h>
 #include <trajectory_planner/mpc_solver/acado_auxiliary_functions.h>
 #include <trajectory_planner/mpc_solver/acado_solver_sfunction.h>
@@ -36,6 +37,7 @@ namespace trajPlanner{
 		ros::NodeHandle nh_;
 		ros::Publisher mpcTrajVisPub_;
 		ros::Publisher mpcTrajHistVisPub_;
+		ros::Publisher candidateTrajPub_;
 		ros::Publisher localCloudPub_;
 		ros::Publisher staticObstacleVisPub_;
 		ros::Publisher dynamicObstacleVisPub_;
@@ -55,16 +57,23 @@ namespace trajPlanner{
 		bool stateReceived_ = false;
 		std::vector<Eigen::VectorXd> currentStatesSol_;
 		std::vector<Eigen::VectorXd> currentControlsSol_;
+		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
+		std::vector<std::vector<Eigen::VectorXd>> candidateControls_;
 		// VariablesGrid currentStatesSol_;
 		// VariablesGrid currentControlsSol_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
 		std::vector<bboxVertex> refinedBBoxVertices_;
-		std::vector<Eigen::Vector3d> dynamicObstaclesPos_;
-		std::vector<Eigen::Vector3d> dynamicObstaclesVel_;
-		std::vector<Eigen::Vector3d> dynamicObstaclesSize_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesVel_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize_;
+		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredPos_;
+		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredSize_;
+		std::vector<Eigen::VectorXd> obIntentProb_;
 		// std::shared_ptr<OsqpEigen::Solver> solver_;
+		std::vector<double> trajWeightedScore_;
+		std::vector<Eigen::Vector3d> trajScore_;
 
 
 		// parameters
@@ -104,7 +113,17 @@ namespace trajPlanner{
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
 		// void updateDynamicObstacles(const std::vector<std::vector<Eigen::Vector3d>>& obstaclesPos, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesVel, const std::vector<std::vector<Eigen::Vector3d>>& obstaclesSize); // position, velocity, size
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
+		void updatePredObstacles(const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predPos, const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predSize, const std::vector<Eigen::VectorXd> &intentProb);
+		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol);
 		bool makePlan();
+		bool makePlanWithPred();
+		void findClosestObstacle(int &obIdx);
+		void getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize);
+		Eigen::Vector3d getTrajectoryScore(const std::vector<Eigen::VectorXd> &states, const std::vector<Eigen::VectorXd> &controls, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize);
+		double getConsistencyScore(const std::vector<Eigen::VectorXd> &state);
+		double getDetourScore(const std::vector<Eigen::VectorXd> &state);
+		double getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize);
+		int evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int &obIdx, const std::vector<int> &intentType);
 		// bool ACADOSolve();
 		// bool makePlanCG();
 		// std::vector<staticObstacle> sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles);
@@ -134,7 +153,9 @@ namespace trajPlanner{
 		// void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
 		// 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 		// 	std::vector<std::vector<int>> &isDyamic);
-		void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
+		void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, 
+			const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
+			int &numObs, int mpcWindow, 
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 			std::vector<std::vector<int>> &isDyamic);
 		void updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound);
@@ -154,6 +175,7 @@ namespace trajPlanner{
 		void visCB(const ros::TimerEvent&);
 		void publishMPCTrajectory();
 		void publishHistoricTrajectory();
+		void publishCandidateTrajectory();
 		void publishLocalCloud();
 		void publishStaticObstacles();
 		void publishDynamicObstacles();
