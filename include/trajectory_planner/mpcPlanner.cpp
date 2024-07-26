@@ -315,7 +315,7 @@ namespace trajPlanner{
 
 	void mpcPlanner::getTrajectory(std::vector<Eigen::Vector3d>& traj){
 		traj.clear();
-		for (int i=0; i<this->horizon_; ++i){
+		for (int i=0; i<this->currentStatesSol_.size(); ++i){
 			// DVector states = this->currentStatesSol_.getVector(i);
 			Eigen::VectorXd states = this->currentStatesSol_[i];
 			Eigen::Vector3d p (states(0), states(1), states(2));
@@ -414,7 +414,7 @@ namespace trajPlanner{
 
 	void mpcPlanner::publishCandidateTrajectory(){
 		if (not this->firstTime_){
-			if (this->candidateStates_.size() != 0){
+			if (this->candidateStates_.size() > 0){
 				visualization_msgs::MarkerArray trajMsg;
 				int countMarker = 0;
 				for (int i=0; i<int(this->candidateStates_.size()); ++i){
@@ -1035,7 +1035,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     // // settings
     solver.settings()->setVerbosity(false);
     solver.settings()->setWarmStart(false);
-	// solver.settings()->setTimeLimit(0.01);
+	solver.settings()->setTimeLimit(0.015);
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-5);
 	// solver.settings()->setDualInfeasibilityTollerance();
@@ -1069,11 +1069,12 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
 		return 0;
 
-	// if (solver.workspace()->info->solve_time>0.015){
-	// 	return 0;
-	// }
+	if (solver.workspace()->info->solve_time>0.015){
+		return 0;
+	}
 
-	QPSolution = solver.getSolution();
+	QPSolution = solver.getSolution();	
+	solver.clearSolver();
 	controlsSol.clear();
 	statesSol.clear();			
 	for (int i=0;i<mpcWindow+1;i++){
@@ -1103,13 +1104,15 @@ bool mpcPlanner::makePlan(){
 }
 
 bool mpcPlanner::makePlanWithPred(){
-	this->candidateStates_.clear();
-	this->candidateControls_.clear();
-	this->trajWeightedScore_.clear();
-	this->trajScore_.clear();
+	std::vector<std::vector<Eigen::VectorXd>> candidateStatesTemp;
+	std::vector<std::vector<Eigen::VectorXd>> candidateControlsTemp;
 	std::vector<Eigen::Vector3d> trajScore;
 	std::vector<int> intentType;
 	if (this->firstTime_){
+		this->candidateStates_.clear();
+		this->candidateControls_.clear();
+		this->trajWeightedScore_.clear();
+		this->trajScore_.clear();
 		this->currentStatesSol_.clear();
 		this->currentControlsSol_.clear();
 	}
@@ -1126,21 +1129,23 @@ bool mpcPlanner::makePlanWithPred(){
 			std::vector<Eigen::VectorXd> controlsSol;
 			successSolve = this->solveTraj(staticObstacles, obstaclesPosComb[i], obstaclesSizeComb[i], statesSol, controlsSol);
 			if (successSolve){
-				this->candidateStates_.push_back(statesSol);
-				this->candidateControls_.push_back(controlsSol);
+				candidateStatesTemp.push_back(statesSol);
+				candidateControlsTemp.push_back(controlsSol);
 				Eigen::Vector3d score;
 				score = this->getTrajectoryScore(statesSol, controlsSol, obstaclesPosComb[i], obstaclesSizeComb[i]);
 				trajScore.push_back(score);
 				intentType.push_back(i);
 			}
 		}
+		this->candidateStates_ = candidateStatesTemp;
+		this->candidateControls_ = candidateControlsTemp;
 		if (this->candidateStates_.size()){
 			this->firstTime_ = false;
 			validTraj = true;
 			// get best traj
 			int bestTrajIdx = evaluateTraj(trajScore, obIdx, intentType);
 			this->currentStatesSol_ = this->candidateStates_[bestTrajIdx];
-			this->currentControlsSol_ = this->candidateControls_[bestTrajIdx];
+			this->currentControlsSol_ = candidateControlsTemp[bestTrajIdx];
 			this->trajScore_ = trajScore;
 		}
 		else{
@@ -1149,6 +1154,10 @@ bool mpcPlanner::makePlanWithPred(){
 		
 	}
 	else{
+		this->candidateStates_.clear();
+		this->candidateControls_.clear();
+		this->trajWeightedScore_.clear();
+		this->trajScore_.clear();
 		validTraj = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, this->currentStatesSol_, this->currentControlsSol_);
 		if (validTraj){
 			this->firstTime_ = false;
