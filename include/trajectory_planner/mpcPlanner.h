@@ -39,15 +39,23 @@ namespace trajPlanner{
 		ros::Timer visTimer_;
 		ros::Timer clusteringTimer_;
 
+		static const int numStates = 8;
+		static const int numControls = 5;
+
 		std::shared_ptr<mapManager::occMap> map_;
 		std::shared_ptr<obstacleClustering> obclustering_;
 		double ts_; // timestep
 		Eigen::Vector3d currPos_;
 		Eigen::Vector3d currVel_;
+		double currYaw_;
+		Eigen::Vector3d halfMin_, halfMax_;
+		// std::vector<Eigen::Vector3d> halfSpace_;
+		int numHalfSpace_;
 		std::vector<Eigen::Vector3d> inputTraj_;
 		int lastRefStartIdx_ = 0;
 		bool firstTime_ = true;
 		bool stateReceived_ = false;
+		std::vector<Eigen::Matrix<double, numStates, 1>> ref_;
 		std::vector<Eigen::VectorXd> currentStatesSol_;
 		std::vector<Eigen::VectorXd> currentControlsSol_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
@@ -70,8 +78,6 @@ namespace trajPlanner{
 
 
 		// parameters
-		static const int numStates = 8;
-		static const int numControls = 5;
 		int horizon_;
 		double maxVel_ = 1.0;
 		double maxAcc_ = 1.0;
@@ -102,11 +108,13 @@ namespace trajPlanner{
 		void updateMaxVel(double maxVel);
 		void updateMaxAcc(double maxAcc);
 		void updateCurrStates(const Eigen::Vector3d& pos, const Eigen::Vector3d& vel);
+		void updateCurrStates(const Eigen::Vector3d& pos, const Eigen::Vector3d& vel, const double &yaw);
+		void updateFovParam();
 		void updatePath(const nav_msgs::Path& path, double ts);
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		void updatePredObstacles(const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predPos, const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predSize, const std::vector<Eigen::VectorXd> &intentProb);
-		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol);
+		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
 		bool makePlan();
 		bool makePlanWithPred();
 		void findClosestObstacle(int &obIdx);
@@ -158,6 +166,7 @@ namespace trajPlanner{
 		Eigen::Vector3d getPos(double t);
 		Eigen::Vector3d getVel(double t);
 		Eigen::Vector3d getAcc(double t);
+		Eigen::Vector3d getRef(double t);
 		double getTs();
 		double getHorizon();
 
