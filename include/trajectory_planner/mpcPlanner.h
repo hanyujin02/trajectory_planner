@@ -119,9 +119,9 @@ namespace trajPlanner{
 		bool makePlanWithPred();
 		void findClosestObstacle(int &obIdx);
 		void getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize);
-		Eigen::Vector3d getTrajectoryScore(const std::vector<Eigen::VectorXd> &states, const std::vector<Eigen::VectorXd> &controls, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize);
+		Eigen::Vector3d getTrajectoryScore(const std::vector<Eigen::VectorXd> &states, const std::vector<Eigen::VectorXd> &controls, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
 		double getConsistencyScore(const std::vector<Eigen::VectorXd> &state);
-		double getDetourScore(const std::vector<Eigen::VectorXd> &state);
+		double getDetourScore(const std::vector<Eigen::VectorXd> &state, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
 		double getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize);
 		int evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int &obIdx, const std::vector<int> &intentType);
 		// bool ACADOSolve();
