@@ -1313,7 +1313,7 @@ Eigen::Vector3d mpcPlanner::getTrajectoryScore(const std::vector<Eigen::VectorXd
 	double detourScore = this->getDetourScore(states, xRef);
 	double saftyScore = this->getSaftyScore(states, obstaclePos, obstacleSize);
 	score<<consistencyScore, detourScore, saftyScore;
-	cout<<"score: "<<score<<endl;
+	// cout<<"score: "<<score<<endl;
 	return score;
 }
 
@@ -1353,24 +1353,6 @@ double mpcPlanner::getDetourScore(const std::vector<Eigen::VectorXd> &state, con
 }
 
 double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
-	// double totalDist = 0;
-	// for (int i=0;i<state.size();i++){
-	// 	Eigen::Vector3d pos;
-	// 	pos<<state[i](0),state[i](1),state[i](2);
-	// 	double dist = 0;
-	// 	double maxSize = sqrt(pow(obstacleSize[j][i](0),2)+pow(obstacleSize[j][i](1),2));
-	// 	double weight = (1-tanh(atanh(0.9)/(this->safetyDist_+maxSize)*d));
-	// 	for (int j=0;j<int(obstaclePos.size());j++){
-	// 		// double maxSize = sqrt(pow(obstacleSize[j][i](0),2)+pow(obstacleSize[j][i](1),2));
-	// 		double d = (pos-obstaclePos[j][i]).norm();
-	// 		// double weight = (1-tanh(atanh(0.9)/(this->safetyDist_+maxSize)*d));
-	// 		// double weightedD = d*weight;
-	// 		// dist += weightedD;
-	// 		dist += d;
-	// 	}
-	// 	dist /= obstaclePos.size();
-	// 	totalDist += dist;
-	// }
 	double totalDist = 0;
 	
 	for (int i=0;i<int(obstaclePos.size());i++){
@@ -1432,8 +1414,8 @@ int mpcPlanner::evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int 
 	int maxWeightIdx;
 	double s = weightedScore.maxCoeff(&bestTrajIdx);
 	double w = weight.maxCoeff(&maxWeightIdx);
-	cout<<"best score: "<<s<<"best idx:"<<bestTrajIdx<<endl;
-	cout<<"highest weight"<<w<<"idx: "<<maxWeightIdx<<endl;
+	// cout<<"best score: "<<s<<"best idx:"<<bestTrajIdx<<endl;
+	// cout<<"highest weight"<<w<<"idx: "<<maxWeightIdx<<endl;
 	return bestTrajIdx;
 }
 }
