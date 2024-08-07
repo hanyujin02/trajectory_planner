@@ -1189,7 +1189,7 @@ bool mpcPlanner::makePlanWithPred(){
 	std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 	this->getXRef(xRef);
 	if (this->obPredPos_.size()){
-		this->getIntentComb(obIdx, obstaclesPosComb, obstaclesSizeComb);
+		this->getIntentComb(obIdx, obstaclesPosComb, obstaclesSizeComb, xRef);
 		bool successSolve;
 		for (int i=0; i<int(obstaclesPosComb.size());i++){
 			std::vector<Eigen::VectorXd> statesSol;
@@ -1238,7 +1238,7 @@ bool mpcPlanner::makePlanWithPred(){
 	return validTraj;
 }
 
-void mpcPlanner::findClosestObstacle(int &obIdx){
+void mpcPlanner::findClosestObstacle(int &obIdx, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef){
 	double minDist = INFINITY;
 	obIdx = -1;
 	for (int i=0;i<int(this->dynamicObstaclesPos_.size());i++){
@@ -1250,10 +1250,10 @@ void mpcPlanner::findClosestObstacle(int &obIdx){
 	}
 }
 
-void mpcPlanner::getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize){
+void mpcPlanner::getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef){
 	intentCombPos.clear();
 	intentCombSize.clear();
-	this->findClosestObstacle(obIdx);
+	this->findClosestObstacle(obIdx, xRef);
 	intentCombPos.resize(6);
 	intentCombSize.resize(6);
 
@@ -1360,7 +1360,7 @@ double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, cons
 		double totalWeight = 0;
 		for (int j=0;j<int(state.size());j++){
 			Eigen::Vector3d pos;
-			pos<<state[i](0),state[i](1),state[i](2);
+			pos<<state[j](0),state[j](1),state[j](2);
 			double maxSize = sqrt(pow(obstacleSize[i][j](0),2)+pow(obstacleSize[i][j](1),2));
 			double d = (pos-obstaclePos[i][j]).norm();
 			double weight = (1-tanh(atanh(0.5)/(this->safetyDist_+maxSize)*d));
