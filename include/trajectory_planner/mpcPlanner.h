@@ -83,7 +83,8 @@ namespace trajPlanner{
 		double maxAcc_ = 1.0;
 		double zRangeMin_;
 		double zRangeMax_;
-		double safetyDist_;
+		double dynamicSafetyDist_;
+		double staticSafetyDist_;
 		double staticSlack_;
 		double dynamicSlack_;
 
@@ -114,7 +115,7 @@ namespace trajPlanner{
 		void updatePath(const std::vector<Eigen::Vector3d>& path, double ts);
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		void updatePredObstacles(const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predPos, const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predSize, const std::vector<Eigen::VectorXd> &intentProb);
-		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
+		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef, const double &timeLimit = 1e10);
 		bool makePlan();
 		bool makePlanWithPred();
 		void findClosestObstacle(int &obIdx, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
