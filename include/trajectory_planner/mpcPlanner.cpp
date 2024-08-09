@@ -295,16 +295,17 @@ namespace trajPlanner{
 			this->obPredSize_ = predSize;
 			this->obIntentProb_ = intentProb;
 
-			this->dynamicObstaclesPos_.clear();
-			this->dynamicObstaclesSize_.clear();
 			for (int i=0;i<int(this->obPredPos_.size());i++){
 				for (int j=0;j<int(this->obPredPos_[i].size());j++){
 					for (int k=0;k<int(this->obPredPos_[i][j].size());k++){
-						this->obPredPos_[i][j][k](2) = (this->obPredPos_[i][j][k](2) + this->obPredSize_[i][j][k](2)/2)/2;
-						this->obPredSize_[i][j][k](2) = 2*this->obPredPos_[i][j][k](2);
+						this->obPredPos_[i][j][k](2) = (this->obPredPos_[i][j][k](2) + this->obPredSize_[i][j][k](2)/2)/2; // TODO: check how the center is represent, why /2 twice
+						this->obPredSize_[i][j][k](2) = 2*this->obPredPos_[i][j][k](2); // TODO: how the size is represent
 					}
 				}
 			}
+
+\			this->dynamicObstaclesPos_.clear();
+			this->dynamicObstaclesSize_.clear();
 			this->dynamicObstaclesPos_.resize(this->obPredPos_.size());
 			this->dynamicObstaclesSize_.resize(this->obPredPos_.size());
 			for (int i=0;i<int(this->obPredPos_.size());i++){
@@ -473,7 +474,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		std::vector<std::vector<Eigen::VectorXd>> candidateStatesTemp;
 		std::vector<std::vector<Eigen::VectorXd>> candidateControlsTemp;
 		std::vector<Eigen::Vector3d> trajScore;
-		std::vector<int> intentType;
+		std::vector<int> intentType; 
 		if (this->firstTime_){
 			this->candidateStates_.clear();
 			this->candidateControls_.clear();
@@ -510,7 +511,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 					}
 				}
 				else{
-					// cout<<"time out"<<endl;
 					break;
 				}
 			}
@@ -520,7 +520,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				this->firstTime_ = false;
 				validTraj = true;
 				// get best traj
-				int bestTrajIdx = evaluateTraj(trajScore, obIdx, intentType);
+				int bestTrajIdx = this->evaluateTraj(trajScore, obIdx, intentType);
 				this->currentStatesSol_ = this->candidateStates_[bestTrajIdx];
 				this->currentControlsSol_ = this->candidateControls_[bestTrajIdx];
 				this->trajScore_ = trajScore;
@@ -575,11 +575,9 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 1),
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), 2),
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 3),
-				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),4),
-				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),5)};
-		// Eigen::VectorXd weight;
-		// weight.resize(6);
-		std::sort(weight.begin(), weight.end());
+				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 4),
+				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 5)}; // TODO: prob
+		std::sort(weight.begin(), weight.end());  
 
 		// for closest obstacle, find 6 intent combinations
 		intentCombPosTemp[0].push_back(this->obPredPos_[obIdx][dynamicPredictor::STOP]);
@@ -593,12 +591,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		intentCombPosTemp[5].push_back(this->obPredPos_[obIdx][dynamicPredictor::RIGHT]);
 		intentCombPosTemp[5].push_back(this->obPredPos_[obIdx][dynamicPredictor::FORWARD]);
 
-		// intentCombPos[6].push_back(this->obPredPos_[obIdx][dynamicPredictor::LEFT]);
-		// intentCombPos[6].push_back(this->obPredPos_[obIdx][dynamicPredictor::STOP]);
-
-		// intentCombPos[7].push_back(this->obPredPos_[obIdx][dynamicPredictor::RIGHT]);
-		// intentCombPos[7].push_back(this->obPredPos_[obIdx][dynamicPredictor::STOP]);
-
 		intentCombSizeTemp[0].push_back(this->obPredSize_[obIdx][dynamicPredictor::STOP]);
 		intentCombSizeTemp[1].push_back(this->obPredSize_[obIdx][dynamicPredictor::LEFT]);
 		intentCombSizeTemp[2].push_back(this->obPredSize_[obIdx][dynamicPredictor::RIGHT]);
@@ -610,13 +602,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		intentCombSizeTemp[5].push_back(this->obPredSize_[obIdx][dynamicPredictor::RIGHT]);
 		intentCombSizeTemp[5].push_back(this->obPredSize_[obIdx][dynamicPredictor::FORWARD]);
 
-		// intentCombSize[6].push_back(this->obPredSize_[obIdx][dynamicPredictor::LEFT]);
-		// intentCombSize[6].push_back(this->obPredSize_[obIdx][dynamicPredictor::STOP]);
-
-		// intentCombSize[7].push_back(this->obPredSize_[obIdx][dynamicPredictor::RIGHT]);
-		// intentCombSize[7].push_back(this->obPredSize_[obIdx][dynamicPredictor::STOP]);
 		for (int i=0;i<6;i++){
-			// cout<<weight[5-i].first<<endl;
 			intentCombPos[i] = intentCombPosTemp[weight[5-i].second];
 			intentCombSize[i] = intentCombSizeTemp[weight[5-i].second];
 		}
@@ -632,7 +618,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				}
 			}
 		}	
-
 	}
 
 	Eigen::Vector3d mpcPlanner::getTrajectoryScore(const std::vector<Eigen::VectorXd> &states, const std::vector<Eigen::VectorXd> &controls, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef){
@@ -641,7 +626,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		double detourScore = this->getDetourScore(states, xRef);
 		double saftyScore = this->getSaftyScore(states, obstaclePos, obstacleSize);
 		score<<consistencyScore, detourScore, saftyScore;
-		// cout<<"score: "<<score<<endl;
 		return score;
 	}
 
@@ -653,13 +637,10 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		else{
 			double totalDist = 0;
 			for (int i=0;i<numConsistencyStep;i++){
-				// double weight = 1-1/(1+exp(-(i-numConsistencyStep)));
-				// cout<<"weight: "<<weight<<endl;
 				Eigen::Vector3d prevPos;
 				prevPos<<this->currentStatesSol_[i](0), this->currentStatesSol_[i](1), this->currentStatesSol_[i](2);
 				Eigen::Vector3d pos;
 				pos<<state[i](0), state[i](1), state[i](2);
-				// totalDist += weight*(prevPos-pos).norm();
 				totalDist += (prevPos-pos).norm();
 			}
 			totalDist /= numConsistencyStep;
@@ -691,8 +672,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				pos<<state[j](0),state[j](1),state[j](2);
 				double maxSize = sqrt(pow(obstacleSize[i][j](0),2)+pow(obstacleSize[i][j](1),2));
 				double d = (pos-obstaclePos[i][j]).norm();
-				double weight = (1-tanh(atanh(0.5)/(this->dynamicSafetyDist_+maxSize)*d));
-				// double d = max(2.0-(pos-obstaclePos[i][j]).norm(),0.0);// ignore dist when dist >2.0
+				double weight = (1-tanh(atanh(0.5)/(this->dynamicSafetyDist_+maxSize)*d)); // TODO: set a cap?
 				
 				dist += d*weight;
 				totalWeight += weight;
@@ -728,9 +708,8 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		weight<<this->obIntentProb_[obIdx](dynamicPredictor::STOP), this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 
 				this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
 				this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
-				this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD);
-				// this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::STOP),
-				// this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::STOP);
+				this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD); // TODO: prob
+
 
 		Eigen::VectorXd weightedScore;
 		weightedScore.resize(consistentScore.size());
@@ -742,8 +721,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		int maxWeightIdx;
 		double s = weightedScore.maxCoeff(&bestTrajIdx);
 		double w = weight.maxCoeff(&maxWeightIdx);
-		// cout<<"best score: "<<s<<"best idx:"<<bestTrajIdx<<endl;
-		// cout<<"highest weight"<<w<<"idx: "<<maxWeightIdx<<endl;
 		return bestTrajIdx;
 	}
 

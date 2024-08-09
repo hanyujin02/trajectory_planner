@@ -49,7 +49,6 @@ namespace trajPlanner{
 		Eigen::Vector3d currVel_;
 		double currYaw_;
 		Eigen::Vector3d halfMin_, halfMax_;
-		// std::vector<Eigen::Vector3d> halfSpace_;
 		int numHalfSpace_;
 		std::vector<Eigen::Vector3d> inputTraj_;
 		int lastRefStartIdx_ = 0;
@@ -60,8 +59,6 @@ namespace trajPlanner{
 		std::vector<Eigen::VectorXd> currentControlsSol_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateControls_;
-		// VariablesGrid currentStatesSol_;
-		// VariablesGrid currentControlsSol_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
@@ -72,7 +69,6 @@ namespace trajPlanner{
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredPos_;
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredSize_;
 		std::vector<Eigen::VectorXd> obIntentProb_;
-		// std::shared_ptr<OsqpEigen::Solver> solver_;
 		std::vector<double> trajWeightedScore_;
 		std::vector<Eigen::Vector3d> trajScore_;
 
