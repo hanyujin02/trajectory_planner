@@ -41,7 +41,7 @@ int acado_solve( void )
 	acado_nWSR = QPOASES_NWSRMAX;
 
 	QProblem qp(150, 1230);
-	real_t cputime=0.03;
+	real_t cputime=0.08;
 	memset(&acadoWorkspace.y,0,sizeof(acadoWorkspace.y));
 	returnValue retVal = qp.init(acadoWorkspace.H, acadoWorkspace.g, acadoWorkspace.A, acadoWorkspace.lb, acadoWorkspace.ub, acadoWorkspace.lbA, acadoWorkspace.ubA, acado_nWSR,acadoWorkspace.y,&cputime);
     qp.getPrimalSolution( acadoWorkspace.x );
