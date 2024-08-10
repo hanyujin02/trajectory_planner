@@ -295,16 +295,7 @@ namespace trajPlanner{
 			this->obPredSize_ = predSize;
 			this->obIntentProb_ = intentProb;
 
-			for (int i=0;i<int(this->obPredPos_.size());i++){
-				for (int j=0;j<int(this->obPredPos_[i].size());j++){
-					for (int k=0;k<int(this->obPredPos_[i][j].size());k++){
-						this->obPredPos_[i][j][k](2) = (this->obPredPos_[i][j][k](2) + this->obPredSize_[i][j][k](2)/2)/2; // TODO: check how the center is represent, why /2 twice
-						this->obPredSize_[i][j][k](2) = 2*this->obPredPos_[i][j][k](2); // TODO: how the size is represent
-					}
-				}
-			}
-
-\			this->dynamicObstaclesPos_.clear();
+			this->dynamicObstaclesPos_.clear();
 			this->dynamicObstaclesSize_.clear();
 			this->dynamicObstaclesPos_.resize(this->obPredPos_.size());
 			this->dynamicObstaclesSize_.resize(this->obPredPos_.size());
@@ -330,10 +321,6 @@ namespace trajPlanner{
 bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
 		std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef, const double &timeLimit){
 		// set the preview window
-		// if (this->firstTime_){
-		// 	this->currentStatesSol_.clear();
-		// 	this->currentControlsSol_.clear();
-		// }
 		const int mpcWindow = this->horizon_-1;
 		int numObs;
 		int numHalfSpace = this->numHalfSpace_;
@@ -575,8 +562,8 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 1),
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), 2),
 				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 3),
-				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 4),
-				std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 5)}; // TODO: prob
+				std::make_pair(std::max(this->obIntentProb_[obIdx](dynamicPredictor::LEFT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)), 4),
+				std::make_pair(std::max(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)), 5)}; 
 		std::sort(weight.begin(), weight.end());  
 
 		// for closest obstacle, find 6 intent combinations
@@ -624,7 +611,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		Eigen::Vector3d score;
 		double consistencyScore = this->getConsistencyScore(states);
 		double detourScore = this->getDetourScore(states, xRef);
-		double saftyScore = this->getSaftyScore(states, obstaclePos, obstacleSize);
+		double saftyScore = this->getSafetyScore(states, obstaclePos, obstacleSize);
 		score<<consistencyScore, detourScore, saftyScore;
 		return score;
 	}
@@ -661,7 +648,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		return totalDist;
 	}
 
-	double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
+	double mpcPlanner::getSafetyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
 		double totalDist = 0;
 		
 		for (int i=0;i<int(obstaclePos.size());i++){
@@ -673,7 +660,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				double maxSize = sqrt(pow(obstacleSize[i][j](0),2)+pow(obstacleSize[i][j](1),2));
 				double d = (pos-obstaclePos[i][j]).norm();
 				double weight = (1-tanh(atanh(0.5)/(this->dynamicSafetyDist_+maxSize)*d)); // TODO: set a cap?
-				
 				dist += d*weight;
 				totalWeight += weight;
 			}
@@ -707,14 +693,14 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		weight.resize(6);
 		weight<<this->obIntentProb_[obIdx](dynamicPredictor::STOP), this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 
 				this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
-				this->obIntentProb_[obIdx](dynamicPredictor::LEFT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD),
-				this->obIntentProb_[obIdx](dynamicPredictor::RIGHT)+this->obIntentProb_[obIdx](dynamicPredictor::FORWARD); // TODO: prob
+				std::max(this->obIntentProb_[obIdx](dynamicPredictor::LEFT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)),
+				std::max(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), this->obIntentProb_[obIdx](dynamicPredictor::FORWARD));
 
 
 		Eigen::VectorXd weightedScore;
 		weightedScore.resize(consistentScore.size());
 		for (int i=0;i<int(consistentScore.size());i++){
-			weightedScore(i) = weight(intentType[i])*(1*consistentScore[i] + 1*detourScore[i] + 1*safetyScore[i]);
+			weightedScore(i) = weight(intentType[i])*(1.0*consistentScore[i] + 1.0*detourScore[i] + 1.0*safetyScore[i]);
 			this->trajWeightedScore_.push_back(weightedScore(i));
 		}
 		int bestTrajIdx;
@@ -963,10 +949,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				fxx = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*cos(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(-sin(yaw[i](j,0)));
 				fyy = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*sin(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(cos(yaw[i](j,0)));
 				fzz = 2*((cz-oxyz[i](j,2)))/pow(osize[i](j,2),2);
-				// fxyz = pow(cx-oxyz(j,0),2)/pow(osize(j,0),2)+pow(cy-oxyz(j,1),2)/pow(osize(j,1),2) + pow(cz-oxyz(j,2),2)/pow(osize(j,2),2);
-				// fxx = 2*(cx-oxyz(j,0))/pow(osize(j,0),2);
-				// fyy = 2*(cy-oxyz(j,1))/pow(osize(j,1),2);
-				// fzz = 2*(cz-oxyz(j,2))/pow(osize(j,2),2);
 				lowerObstacle(i*numObs+j) = 1 - fxyz + fxx * cx + fyy * cy + fzz * cz;
 			}
 		}
@@ -980,7 +962,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 
 	void mpcPlanner::updateConstraintVectors(const Eigen::Matrix<double, numStates, 1> &x0,
 		Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound){
-		// TODO: update initial condition x0 in equality constraint
 		lowerBound.block(0,0,numStates,1) = -x0;
 		upperBound.block(0,0,numStates,1) = -x0;
 	}
