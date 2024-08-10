@@ -1088,8 +1088,8 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 
     // // settings
     solver.settings()->setVerbosity(false);
-    solver.settings()->setWarmStart(true);
-	// solver.settings()->setTimeLimit(timeLimit);
+    solver.settings()->setWarmStart(false);
+	solver.settings()->setTimeLimit(timeLimit);
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-3);
 	// solver.settings()->setDualInfeasibilityTollerance();
@@ -1214,7 +1214,7 @@ bool mpcPlanner::makePlanWithPred(){
 					candidateStatesTemp.push_back(statesSol);
 					candidateControlsTemp.push_back(controlsSol);
 					Eigen::Vector3d score;
-					score = this->getTrajectoryScore(statesSol, controlsSol, staticObstacles, obstaclesPosComb[i], obstaclesSizeComb[i], xRef);
+					score = this->getTrajectoryScore(statesSol, controlsSol, obstaclesPosComb[i], obstaclesSizeComb[i], xRef);
 					trajScore.push_back(score);
 					intentType.push_back(i);
 				}
