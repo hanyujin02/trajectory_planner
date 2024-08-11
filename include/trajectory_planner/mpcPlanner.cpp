@@ -1214,7 +1214,7 @@ bool mpcPlanner::makePlanWithPred(){
 					candidateStatesTemp.push_back(statesSol);
 					candidateControlsTemp.push_back(controlsSol);
 					Eigen::Vector3d score;
-					score = this->getTrajectoryScore(statesSol, controlsSol, obstaclesPosComb[i], obstaclesSizeComb[i], xRef);
+					score = this->getTrajectoryScore(statesSol, controlsSol, staticObstacles, obstaclesPosComb[i], obstaclesSizeComb[i], xRef);
 					trajScore.push_back(score);
 					intentType.push_back(i);
 				}
