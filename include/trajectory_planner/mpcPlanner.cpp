@@ -1088,7 +1088,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 
     // // settings
     solver.settings()->setVerbosity(false);
-    solver.settings()->setWarmStart(false);
+    solver.settings()->setWarmStart(true);
 	solver.settings()->setTimeLimit(timeLimit);
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-3);
@@ -1118,19 +1118,19 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
 
-	// if(not this->firstTime_){
-	// 	Eigen::VectorXd primalVariable;
-	// 	Eigen::VectorXd dualVariable;
-	// 	dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
-	// 	primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
-	// 	for (int i=0;i<mpcWindow+1;i++){
-	// 		primalVariable.block(numStates*i,0,numStates,1) = this->currentStatesSol_[i];
-	// 	}
-	// 	for(int i=0;i<mpcWindow;i++){
-	// 		primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = this->currentControlsSol_[i];
-	// 	}
-	// 	solver.setWarmStart(primalVariable, dualVariable);
-	// }
+	if(not this->firstTime_){
+		Eigen::VectorXd primalVariable;
+		Eigen::VectorXd dualVariable;
+		dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
+		primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
+		for (int i=0;i<mpcWindow+1;i++){
+			primalVariable.block(numStates*i,0,numStates,1) = this->currentStatesSol_[i];
+		}
+		for(int i=0;i<mpcWindow;i++){
+			primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = this->currentControlsSol_[i];
+		}
+		solver.setWarmStart(primalVariable, dualVariable);
+	}
 	// solve the QP problem
 	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
 		return 0;
@@ -1496,11 +1496,7 @@ int mpcPlanner::evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int 
 		this->trajWeightedScore_.push_back(weightedScore(i));
 	}
 	int bestTrajIdx;
-	int maxWeightIdx;
 	double s = weightedScore.maxCoeff(&bestTrajIdx);
-	double w = weight.maxCoeff(&maxWeightIdx);
-	cout<<"best score: "<<s<<"best idx:"<<bestTrajIdx<<endl;
-	cout<<"highest weight"<<w<<"idx: "<<maxWeightIdx<<endl;
 	return bestTrajIdx;
 }
 }
