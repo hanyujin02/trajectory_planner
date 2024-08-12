@@ -455,11 +455,8 @@ namespace trajPlanner{
 		nav_msgs::Path trajectory;
 		trajectory.header.frame_id = "map";
 		for (double t=0; t<=this->getDuration(); t+=dt){
-			Eigen::Vector3d pos = this->getPos(t);
 			geometry_msgs::PoseStamped ps;
-			ps.pose.position.x = pos(0);
-			ps.pose.position.y = pos(1);
-			ps.pose.position.z = pos(2);
+			ps = this->getPose(t);
 			trajectory.poses.push_back(ps);
 		}
 		return trajectory;
