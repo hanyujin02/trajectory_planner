@@ -49,7 +49,6 @@ namespace trajPlanner{
 		Eigen::Vector3d currVel_;
 		double currYaw_;
 		Eigen::Vector3d halfMin_, halfMax_;
-		// std::vector<Eigen::Vector3d> halfSpace_;
 		int numHalfSpace_;
 		std::vector<Eigen::Vector3d> inputTraj_;
 		int lastRefStartIdx_ = 0;
@@ -63,8 +62,6 @@ namespace trajPlanner{
 		std::vector<Eigen::VectorXd> currentControlsSol_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateControls_;
-		// VariablesGrid currentStatesSol_;
-		// VariablesGrid currentControlsSol_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
@@ -75,7 +72,6 @@ namespace trajPlanner{
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredPos_;
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obPredSize_;
 		std::vector<Eigen::VectorXd> obIntentProb_;
-		// std::shared_ptr<OsqpEigen::Solver> solver_;
 		std::vector<double> trajWeightedScore_;
 		std::vector<Eigen::Vector3d> trajScore_;
 
@@ -107,8 +103,10 @@ namespace trajPlanner{
 		void registerCallback();
 		void setMap(const std::shared_ptr<mapManager::occMap>& map);
 
+		// callback
 		void staticObstacleClusteringCB(const ros::TimerEvent&);
 
+		// main functions
 		void updateMaxVel(double maxVel);
 		void updateMaxAcc(double maxAcc);
 		void updateCurrStates(const Eigen::Vector3d& pos, const Eigen::Vector3d& vel);
@@ -128,9 +126,7 @@ namespace trajPlanner{
 		double getDetourScore(const std::vector<Eigen::VectorXd> &state, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
 		double getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize);
 		int evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int &obIdx, const std::vector<int> &intentType);
-		// bool ACADOSolve();
-		// bool makePlanCG();
-		// std::vector<staticObstacle> sortStaticObstacles(const std::vector<staticObstacle> &staticObstacles);
+
 
 		// OSQP Solver Setup
 		void setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B); //TODO
@@ -150,29 +146,25 @@ namespace trajPlanner{
 			const Eigen::Matrix<double, numStates, 1>& x0,
 			Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, int numObs, int mpcWindow, 
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw);
-
-		// void updateConstraintVectors(const Eigen::Matrix<double, 6, 1> &x0, Eigen::VectorXd &lowerBound, Eigen::VectorXd &upperBound); //TODO
-		// void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, int &numObs, int mpcWindow, 
-		// 	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
-		// 	std::vector<std::vector<int>> &isDyamic);
 		void updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, 
 			const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
 			int &numObs, int mpcWindow, 
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 			std::vector<std::vector<int>> &isDyamic);
 	
-		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
 
+		// user functions
+		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);
 		void getTrajectory(std::vector<Eigen::Vector3d>& traj);
 		void getTrajectory(nav_msgs::Path& traj);
-
 		Eigen::Vector3d getPos(double t);
 		Eigen::Vector3d getVel(double t);
 		Eigen::Vector3d getAcc(double t);
 		Eigen::Vector3d getRef(double t);
 		double getTs();
 		double getHorizon();
-
+		
+		// visualization
 		void visCB(const ros::TimerEvent&);
 		void publishMPCTrajectory();
 		void publishHistoricTrajectory();
