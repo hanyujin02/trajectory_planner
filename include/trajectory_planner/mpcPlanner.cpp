@@ -593,8 +593,8 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::LEFT), 1),
 			std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT), 2),
 			std::make_pair(this->obIntentProb_[obIdx](dynamicPredictor::FORWARD), 3),
-			std::make_pair(max(this->obIntentProb_[obIdx](dynamicPredictor::LEFT),this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)),4),
-			std::make_pair(max(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT),this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)),5)};
+			std::make_pair(std::max(this->obIntentProb_[obIdx](dynamicPredictor::LEFT),this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)), 4),
+			std::make_pair(std::max(this->obIntentProb_[obIdx](dynamicPredictor::RIGHT),this->obIntentProb_[obIdx](dynamicPredictor::FORWARD)), 5)};
 		std::sort(weight.begin(), weight.end());  
 
 		// for closest obstacle, find 6 intent combinations
@@ -642,7 +642,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		Eigen::Vector3d score;
 		double consistencyScore = this->getConsistencyScore(states);
 		double detourScore = this->getDetourScore(states, xRef);
-		double saftyScore = this->getSaftyScore(states, staticObstacles, obstaclePos, obstacleSize);
+		double saftyScore = this->getSafetyScore(states, staticObstacles, obstaclePos, obstacleSize);
 		score<<consistencyScore, detourScore, saftyScore;
 		return score;
 	}
@@ -679,39 +679,39 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		return totalDist;
 	}
 
-double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
-	double totalDist = 0;
-	for (int i=0;i<int(state.size());i++){
-		double dist = 0;
-		double totalWeight = 0;
-		Eigen::Vector3d pos;
-		pos<<state[i](0),state[i](1),0;
-		for (int j=0;j<int(obstaclePos.size());j++){
-			Eigen::Vector3d dynamicObPos = obstaclePos[j][i];
-			dynamicObPos(2) = 0;
-			double maxSize = sqrt(pow(obstacleSize[j][i](0),2)+pow(obstacleSize[j][i](1),2));
-			double d = (pos-dynamicObPos).norm();
-			double weight = (1-tanh(atanh(0.5)/(this->dynamicSafetyDist_+maxSize)*d));
+	double mpcPlanner::getSafetyScore(const std::vector<Eigen::VectorXd> &state, const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &obstaclePos, const std::vector<std::vector<Eigen::Vector3d>> &obstacleSize){
+		double totalDist = 0;
+		for (int i=0;i<int(state.size());i++){
+			double dist = 0;
+			double totalWeight = 0;
+			Eigen::Vector3d pos;
+			pos<<state[i](0),state[i](1),0;
+			for (int j=0;j<int(obstaclePos.size());j++){
+				Eigen::Vector3d dynamicObPos = obstaclePos[j][i];
+				dynamicObPos(2) = 0;
+				double maxSize = sqrt(pow(obstacleSize[j][i](0),2)+pow(obstacleSize[j][i](1),2));
+				double d = (pos-dynamicObPos).norm();
+				double weight = (1-tanh(atanh(0.5)/(this->dynamicSafetyDist_+maxSize)*d));
 
-			dist += d*weight;
-			totalWeight += weight;
-		}
-		for (int j=0;j<int(staticObstacles.size());j++){
-			Eigen::Vector3d statObPos(staticObstacles[j].centroid(0), staticObstacles[j].centroid(1), 0);
-			double maxSize = sqrt(pow(staticObstacles[j].size(0)/2,2)+pow(staticObstacles[j].size(1)/2,2));
-			double d = (pos - statObPos).norm();
-			double weight = (1-tanh(atanh(0.5)/(this->staticSafetyDist_+maxSize)*d));
+				dist += d*weight;
+				totalWeight += weight;
+			}
+			for (int j=0;j<int(staticObstacles.size());j++){
+				Eigen::Vector3d statObPos(staticObstacles[j].centroid(0), staticObstacles[j].centroid(1), 0);
+				double maxSize = sqrt(pow(staticObstacles[j].size(0)/2,2)+pow(staticObstacles[j].size(1)/2,2));
+				double d = (pos - statObPos).norm();
+				double weight = (1-tanh(atanh(0.5)/(this->staticSafetyDist_+maxSize)*d));
 
-			dist += d*weight;
-			totalWeight += weight;
+				dist += d*weight;
+				totalWeight += weight;
+			}
+			dist /= totalWeight;
+			totalDist += dist;
 		}
-		dist /= totalWeight;
-		totalDist += dist;
+		totalDist /= int(state.size());
+		return totalDist;
+
 	}
-	totalDist /= int(state.size());
-	return totalDist;
-
-}
 
 	int mpcPlanner::evaluateTraj(std::vector<Eigen::Vector3d> &trajScore, const int &obIdx, const std::vector<int> &intentType){
 		this->trajWeightedScore_.clear();
@@ -998,9 +998,9 @@ double mpcPlanner::getSaftyScore(const std::vector<Eigen::VectorXd> &state, cons
 		lowerBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numHalfSpace * mpcWindow + numObs * mpcWindow, 1);
 		upperBound.resize(numStates * (mpcWindow+1) + numStates * (mpcWindow+1) + numControls * mpcWindow + numHalfSpace * mpcWindow + numObs * mpcWindow, 1);
 
-	lowerBound << lowerEquality, lowerInequality, lowerObstacle;
-	upperBound << upperEquality, upperInequality, upperObstacle;
-}
+		lowerBound << lowerEquality, lowerInequality, lowerObstacle;
+		upperBound << upperEquality, upperInequality, upperObstacle;
+	}
 
 	void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, int &numObs, int mpcWindow, 
 		std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
