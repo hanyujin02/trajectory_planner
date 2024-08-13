@@ -564,8 +564,15 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			for (int i=0;i<int(this->dynamicObstaclesPos_.size());i++){
 				double dist = 0;
 				for (int j=0;j<int(this->currentStatesSol_.size()/3);j++){
-					Eigen::Vector3d state(this->currentStatesSol_[j](0), this->currentStatesSol_[j](1), this->currentStatesSol_[j](2));
-					dist += (state-this->dynamicObstaclesPos_[i][0]).norm();
+					Eigen::Vector3d state(this->currentStatesSol_[0](0), this->currentStatesSol_[0](1), this->currentStatesSol_[0](2));
+					Eigen::Vector3d nextState(this->currentStatesSol_[1](0), this->currentStatesSol_[1](1), this->currentStatesSol_[1](2));
+					double ang0, ang;
+					ang0 = atan2(nextState(1)-state(1), nextState(0)-state(0));
+					ang = atan2(this->dynamicObstaclesPos_[i][0](1)-state(1), this->dynamicObstaclesPos_[i][0](0)-state(0));
+					double weight = exp(-j); //higher weight for closer time
+					double d = (state-this->dynamicObstaclesPos_[i][0]).norm();
+					double a = 3.0; //larger a means less importance for obstacles backward
+					dist = d * (a-cos(ang-ang0));
 					if (dist > minDist){
 						break;
 					}
@@ -582,6 +589,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		intentCombPos.clear();
 		intentCombSize.clear();
 		this->findClosestObstacle(obIdx, xRef);
+		this->obIdx_ = obIdx;
 		intentCombPos.resize(6);
 		intentCombSize.resize(6);
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> intentCombPosTemp;
