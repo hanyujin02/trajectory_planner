@@ -111,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES trajectory_planner
+ LIBRARIES trajectory_planner ego_planner
  CATKIN_DEPENDS roscpp rospy std_msgs 
  # DEPENDS OsqpEigen
 )
@@ -172,6 +172,16 @@ add_library(
   include/${PROJECT_NAME}/mpc_solver/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
 
+add_library(ego_planner include/${PROJECT_NAME}/test/bspline_optimizer.cpp
+          include/${PROJECT_NAME}/test/dyn_a_star.cpp
+          include/${PROJECT_NAME}/test/grid_map.cpp
+          include/${PROJECT_NAME}/test/planning_visualization.cpp
+          include/${PROJECT_NAME}/test/raycast.cpp
+          include/${PROJECT_NAME}/test/uniform_bspline.cpp
+          include/${PROJECT_NAME}/test/polynomial_traj.cpp
+          include/${PROJECT_NAME}/test/planner_manager.cpp
+          )
+
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
@@ -186,6 +196,7 @@ add_executable(poly_RRTStar_node src/poly_RRTStar_node.cpp)
 add_executable(poly_RRT_goal_node src/poly_RRT_goal_node.cpp)
 add_executable(poly_RRTStar_goal_node src/poly_RRTStar_goal_node.cpp)
 add_executable(bspline_node src/bspline_node.cpp)
+add_executable(bspline_navigation_node src/bspline_navigation_node.cpp)
 # add_executable(testEigen src/test/testEigen.cpp)
 # add_executable(testTrajSolver src/test/testTrajSolver.cpp)
 # add_executable(testBspline src/test/testBspline.cpp)
@@ -230,6 +241,7 @@ target_link_libraries(poly_RRTStar_node ${catkin_LIBRARIES} ${PROJECT_NAME})
 target_link_libraries(poly_RRT_goal_node ${catkin_LIBRARIES} ${PROJECT_NAME})
 target_link_libraries(poly_RRTStar_goal_node ${catkin_LIBRARIES} ${PROJECT_NAME})
 target_link_libraries(bspline_node ${catkin_LIBRARIES} ${PROJECT_NAME})
+target_link_libraries(bspline_navigation_node ${catkin_LIBRARIES} ${PROJECT_NAME} ego_planner)
 # target_link_libraries(testEigen ${catkin_LIBRARIES} OsqpEigen::OsqpEigen)
 # target_link_libraries(testTrajSolver ${catkin_LIBRARIES} ${PROJECT_NAME})
 # target_link_libraries(testBspline ${catkin_LIBRARIES} ${PROJECT_NAME})

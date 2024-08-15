@@ -100,16 +100,22 @@ namespace trajPlanner{
 		bool fillPath(const nav_msgs::Path& path, nav_msgs::Path& adjustedPath);
 		bool updatePath(const nav_msgs::Path& adjustedPath, const std::vector<Eigen::Vector3d>& startEndConditions);
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
+		void updateControlPointTs(double ts);
+		void updateControlPoints(const Eigen::MatrixXd& controlPoints);
 
 		bool makePlan();
+		bool makePlanEgoGradient();
 		bool makePlan(nav_msgs::Path& trajectory, bool yaw=true);
+		bool makePlanEgoGradient(nav_msgs::Path& trajectory, bool yaw=true);
 		void clear();
 		void findCollisionSeg(const Eigen::MatrixXd& controlPoints, std::vector<std::pair<int, int>>& collisionSeg); // find collision segment of current control points
 		bool pathSearch(std::vector<std::pair<int, int>>& collisionSeg, std::vector<std::vector<Eigen::Vector3d>>& paths);
 		void assignGuidePointsSemiCircle(const std::vector<std::vector<Eigen::Vector3d>>& paths, const std::vector<std::pair<int, int>>& collisionSeg);
+		void assignGuidePointsEgoGradient(const std::vector<std::vector<Eigen::Vector3d>>& paths, const std::vector<std::pair<int, int>>& collisionSeg);
 		void assignGuidePointDynamicObstacle();
 		bool isReguideRequired(std::vector<std::pair<int, int>>& reguideCollisionSeg);
 		bool optimizeTrajectory();
+		bool optimizeTrajectoryEgo();
 		int optimize(); // optimize once
 		void adjustPathLength(const std::vector<Eigen::Vector3d>& path, std::vector<Eigen::Vector3d>& adjustedPath);
 		void adjustPathLengthDirect(const std::vector<Eigen::Vector3d>& path, std::vector<Eigen::Vector3d>& adjustedPath);
@@ -165,6 +171,7 @@ namespace trajPlanner{
 		inline void shortcutPath(const std::vector<Eigen::Vector3d>& path, std::vector<Eigen::Vector3d>& pathSC);
 		inline void shortcutPaths(const std::vector<std::vector<Eigen::Vector3d>>& paths, std::vector<std::vector<Eigen::Vector3d>>& pathsSC); 
 		inline bool findGuidePointSemiCircle(int controlPointIdx, const std::pair<int, int>& seg, const std::vector<Eigen::Vector3d>& path, Eigen::Vector3d& guidePoint);
+		inline bool findGuidePointEgoGradient(int controlPointIdx, const std::pair<int, int>& seg, const std::vector<Eigen::Vector3d>& path, Eigen::Vector3d& guidePoint);
 		inline bool hasCollisionTrajectory(const Eigen::MatrixXd& controlPoints);
 		inline bool hasCollisionTrajectory(const Eigen::MatrixXd& controlPoints, Eigen::Vector3d& firstCollisionPos);
 		inline bool hasDynamicCollisionTrajectory(const Eigen::MatrixXd& controlPoints);
@@ -301,6 +308,51 @@ namespace trajPlanner{
 			}
 		}
 		return false;
+	};
+
+	inline bool bsplineTraj::findGuidePointEgoGradient(int controlPointIdx, const std::pair<int, int>& seg, const std::vector<Eigen::Vector3d>& path, Eigen::Vector3d& guidePoint){
+		int numControlpoints = seg.second - seg.first - 1; // number of segment 
+
+		// we want to find a point in the a star path that is perpendicular to control point law vector
+		Eigen::Vector3d controlPointLaw (this->optData_.controlPoints.col(controlPointIdx + 1) - this->optData_.controlPoints.col(controlPointIdx));
+		int AStarID = int(path.size())/2;
+		int prevID = AStarID;
+		double val = (path[AStarID] - this->optData_.controlPoints.col(controlPointIdx)).dot(controlPointLaw);
+		double prevVal = val; 
+		Eigen::Vector3d intersectionPoint;
+		while (AStarID >= 0 and AStarID <= int(path.size())-1){
+			prevID = AStarID;	
+			if (val >= 0){
+				--AStarID;
+			}
+			else{
+				++AStarID;
+			}
+
+			val = (path[AStarID] - this->optData_.controlPoints.col(controlPointIdx)).dot(controlPointLaw);
+			if (val * prevVal <= 0 and (std::abs(val) > 0 or std::abs(prevVal) > 0)){
+				intersectionPoint = path[AStarID] +  (path[AStarID] - path[prevID]) * (controlPointLaw.dot(this->optData_.controlPoints.col(controlPointIdx) - path[AStarID])/controlPointLaw.dot(path[AStarID] - path[prevID]));
+				break;
+			}
+		}
+
+		double length = (intersectionPoint - this->optData_.controlPoints.col(controlPointIdx)).norm();
+		if (length > 1e-5){
+			for (double a=length; a>=0; a-=this->map_->getRes()){
+				Eigen::Vector3d p = (a/length) * intersectionPoint + (1.0 - a/length) * this->optData_.controlPoints.col(controlPointIdx);
+				bool occ = this->map_->isInflatedOccupied(p);
+				if (occ or a < this->map_->getRes()){
+					if (occ){
+						a += this->map_->getRes();
+					}
+					guidePoint = (a/length) * intersectionPoint + (1.0 - a/length) * this->optData_.controlPoints.col(controlPointIdx);
+					break;
+				}
+			}
+		}
+		// cout << "control point idx: " << controlPointIdx << endl;
+		// cout << "guide point: " << guidePoint.transpose() << endl;
+		return true;
 	};
 
 

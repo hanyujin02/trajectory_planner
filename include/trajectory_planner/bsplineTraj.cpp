@@ -329,6 +329,15 @@ namespace trajPlanner{
 		this->optData_.dynamicObstaclesSize = obstaclesSize;
 	}
 
+	void bsplineTraj::updateControlPointTs(double ts){
+		this->controlPointsTs_ = ts;
+	}
+
+
+	void bsplineTraj::updateControlPoints(const Eigen::MatrixXd& controlPoints){
+		this->optData_.controlPoints = controlPoints;
+	}
+
 
 	bool bsplineTraj::makePlan(){
 		// if (not this->isGoalValid()){
@@ -384,8 +393,91 @@ namespace trajPlanner{
 		return true;
 	}
 
+	bool bsplineTraj::makePlanEgoGradient(){
+		ros::Time startTime = ros::Time::now();
+		// step 1. find collision segment
+		this->findCollisionSeg(this->optData_.controlPoints, this->collisionSeg_); // upodate collision seg
+
+		// print the size of control points and size of collision segments
+		cout << "----------------OUR---------------------------" << endl;
+		cout << "total control points size: " << this->optData_.controlPoints.cols() << endl;
+		cout << "Number of collision segments: " << int(this->collisionSeg_.size()) << endl;
+		cout << "==================================================" << endl;
+		for (int i=0; i<int(this->collisionSeg_.size()); ++i){
+			cout << "collision seg: " << i << " from " <<  this->collisionSeg_[i].first << " to " << this->collisionSeg_[i].second << endl;
+		    cout << "First point: " << this->optData_.controlPoints.col(this->collisionSeg_[i].first).transpose() << " Second point: " <<  this->optData_.controlPoints.col(this->collisionSeg_[i].second).transpose() << endl;
+		}
+		cout << "==================================================" << endl;
+
+
+		// step 2. A* to find collision free path
+		bool pathSearchSuccess = this->pathSearch(this->collisionSeg_, this->astarPaths_);
+		if (not pathSearchSuccess){
+			// this->clear();
+			cout << "[BsplineTraj]: Fail because of A* failure." << endl;
+			return false;
+		}
+
+
+		// print A star path for each segment
+		cout << "--------------------A star path------------------" << endl;
+		for (int i=0; i<int(this->astarPaths_.size()); ++i){
+			std::vector<Eigen::Vector3d> path = this->astarPaths_[i];
+			cout << "A* path " << i << endl;
+			for (int j=0; j<int(path.size()); ++j){
+				cout << "[" << path[j].transpose() << "]->";
+			}
+			cout << "end." << endl;
+		}
+
+
+		// step 3. Assign guide point and directions
+		// change this function to make it ego planner's gradient
+		this->assignGuidePointsEgoGradient(this->astarPaths_, this->collisionSeg_);
+		
+
+		// print guide points and guide directions
+		cout << "--------------------Guide points and directions------------------" << endl;
+		for (int i=0; i<int(this->optData_.guidePoints.size()); ++i){
+			std::vector<Eigen::Vector3d> points = this->optData_.guidePoints[i];
+			std::vector<Eigen::Vector3d> directions = this->optData_.guideDirections[i];
+			if (int(points.size()) != 0){
+				cout << "gudie points and direction for control points: " << i << " [" << this->optData_.controlPoints.col(i).transpose() << "]" << endl;
+			}
+			for (int j=0; j<int(points.size()); ++j){ 
+				cout << j << " guide point: " << points[j].transpose() << " direction: " << directions[j].transpose() << endl; 
+			}
+		}
+
+
+		// step 4. call solver
+		bool optimizationSuccess = this->optimizeTrajectoryEgo();
+		// this->clear();
+		if (not optimizationSuccess){
+			cout << "[BsplineTraj]: Fail because of optimizer not finding a solution." << endl; 
+			return false;
+		}
+
+		// step 5. save the result to the class attribute
+		this->bspline_ = trajPlanner::bspline (bsplineDegree, this->optData_.controlPoints, this->controlPointsTs_);
+
+		// step 6. Time reparameterization
+		this->linearFeasibilityReparam();
+
+
+		ros::Time endTime = ros::Time::now();
+		cout << "[BsplineTraj]: Total time: " << (endTime - startTime).toSec() << endl;
+		return true;		
+	}
+
 	bool bsplineTraj::makePlan(nav_msgs::Path& trajectory, bool yaw){
 		bool success = this->makePlan();
+		trajectory = this->evalTrajToMsg(yaw);
+		return success;
+	}
+
+	bool bsplineTraj::makePlanEgoGradient(nav_msgs::Path& trajectory, bool yaw){
+		bool success = this->makePlanEgoGradient();
 		trajectory = this->evalTrajToMsg(yaw);
 		return success;
 	}
@@ -570,6 +662,55 @@ namespace trajPlanner{
 		}
 	}
 
+	void bsplineTraj::assignGuidePointsEgoGradient(const std::vector<std::vector<Eigen::Vector3d>>& paths, const std::vector<std::pair<int, int>>& collisionSeg){
+		// step 1 shortcut A* path to get representative waypoints
+		std::vector<std::vector<Eigen::Vector3d>> astarPathsSC;
+		this->shortcutPaths(paths, astarPathsSC);
+
+		// step 2: find corresponding path and collision segment
+		std::pair<int, int> seg;
+		std::vector<Eigen::Vector3d> path;
+		Eigen::Vector3d guidePoint, guideDirection;
+		for (size_t i=0; i<collisionSeg.size(); ++i){
+			seg = collisionSeg[i];
+			path = astarPathsSC[i];
+			bool inloop = false;
+			for (int controlPointIdx=seg.first+1; controlPointIdx<seg.second; ++controlPointIdx){ // iterate through all collision control points
+				bool findGuidePoint = this->findGuidePointEgoGradient(controlPointIdx, seg, path, guidePoint);
+				this->optData_.guidePoints[controlPointIdx].push_back(guidePoint);
+				guideDirection = (guidePoint - this->optData_.controlPoints.col(controlPointIdx))/(guidePoint - this->optData_.controlPoints.col(controlPointIdx)).norm();
+				// guideDirection = (guidePoint - this->optData_.controlPoints.col(controlPointIdx));
+				this->optData_.guideDirections[controlPointIdx].push_back(guideDirection);
+				if (not findGuidePoint){
+					ROS_ERROR("[BsplineTraj]: Impossible Assignment. Something wrong!");
+				}
+				inloop = true;
+			}
+
+			if (inloop){
+				this->optData_.guidePoints[seg.first].push_back(this->optData_.guidePoints[seg.first+1].back());
+				this->optData_.guideDirections[seg.first].push_back(this->optData_.guideDirections[seg.first+1].back());
+				this->optData_.guidePoints[seg.second].push_back(this->optData_.guidePoints[seg.second-1].back());
+				this->optData_.guideDirections[seg.second].push_back(this->optData_.guideDirections[seg.second-1].back());
+			}
+
+
+			bool lineCollision = (seg.second - seg.first - 1 == 0);
+			if (lineCollision){
+				for (int controlPointIdx=seg.first; controlPointIdx<=seg.second; ++controlPointIdx){ // iterate through all collision control points
+					bool findGuidePoint = this->findGuidePointEgoGradient(controlPointIdx, seg, path, guidePoint);
+					this->optData_.guidePoints[controlPointIdx].push_back(guidePoint);
+					guideDirection = (guidePoint - this->optData_.controlPoints.col(controlPointIdx))/(guidePoint - this->optData_.controlPoints.col(controlPointIdx)).norm();
+					// guideDirection = (guidePoint - this->optData_.controlPoints.col(controlPointIdx));
+					this->optData_.guideDirections[controlPointIdx].push_back(guideDirection);
+					if (not findGuidePoint){
+						ROS_ERROR("[BsplineTraj]: Impossible Assignment. Something wrong!");
+					}
+				}
+			}
+		}
+	}
+
 	bool bsplineTraj::isReguideRequired(std::vector<std::pair<int, int>>& reguideCollisionSeg){
 		std::vector<std::pair<int, int>> prevCollisionSeg = this->collisionSeg_; // previous collision segment
 		this->findCollisionSeg(this->optData_.controlPoints, this->collisionSeg_); // new collision segment
@@ -681,6 +822,89 @@ namespace trajPlanner{
 		}
 		this->weightDistance_ = weightDistance0;
 		this->weightDynamicObstacle_ = weightDynamicObstacle0;
+		return true;
+	}
+
+
+	bool bsplineTraj::optimizeTrajectoryEgo(){
+		this->optimize();
+		double weightDistance0 = this->weightDistance_;
+		double weightDynamicObstacle0 = this->weightDynamicObstacle_;
+		int failCount = 0; 
+		std::vector<vector<Eigen::Vector3d>> tempAstarPaths; // in case path search fail
+		bool hasCollision, hasDynamicCollision;
+		int iterCount = 1;
+		while (ros::ok()){
+			hasCollision = this->hasCollisionTrajectory(this->optData_.controlPoints);
+			if (this->optData_.dynamicObstaclesPos.size() != 0){
+				hasDynamicCollision = this->hasDynamicCollisionTrajectory(this->optData_.controlPoints);
+			}
+			else{
+				hasDynamicCollision = false;
+			}
+
+			if (not hasCollision and not hasDynamicCollision){
+				break;
+			}
+
+			if (failCount >= 4){
+				std::vector<std::pair<int, int>> collisionSeg;
+				this->findCollisionSeg(this->optData_.controlPoints, collisionSeg);
+				bool pathSearchSuccess = this->pathSearch(collisionSeg, tempAstarPaths);	
+				if (pathSearchSuccess){
+					this->astarPaths_ = tempAstarPaths; 
+					this->assignGuidePointsEgoGradient(tempAstarPaths, collisionSeg);
+				}				
+			}
+
+			if (failCount >= 8){
+				this->weightDistance_ = weightDistance0;
+				this->weightDynamicObstacle_ = weightDynamicObstacle0;
+				return false;
+			}
+
+			if (hasCollision){
+				// need to determine whether the reguide is required
+				// std::vector<std::pair<int, int>> reguideCollisionSeg;
+				// if (this->isReguideRequired(reguideCollisionSeg)){ // this will update collision segment for next iteration
+				// 	bool pathSearchSuccess = this->pathSearch(reguideCollisionSeg, tempAstarPaths);
+					
+				// 	if (pathSearchSuccess){
+				// 		this->astarPaths_ = tempAstarPaths; 
+				// 		this->assignGuidePointsEgoGradient(tempAstarPaths, reguideCollisionSeg);
+				// 	}
+				// 	else{
+				// 		this->weightDistance_ *= 2.0;
+				// 		++failCount;
+				// 	}
+				// }
+				// else{
+				// 	this->weightDistance_ *= 2.0; // no need reguide: this means weight is not big enough	
+				// 	++failCount;
+				// }
+
+				std::vector<std::pair<int, int>> collisionSeg;
+				this->findCollisionSeg(this->optData_.controlPoints, collisionSeg);
+				bool pathSearchSuccess = this->pathSearch(collisionSeg, tempAstarPaths);
+				
+				if (pathSearchSuccess){
+					this->astarPaths_ = tempAstarPaths; 
+					this->assignGuidePointsEgoGradient(tempAstarPaths, collisionSeg);
+				}
+				this->weightDistance_ *= 2.0;
+				++failCount;
+			}
+
+			if (hasDynamicCollision){
+				this->weightDynamicObstacle_ *= 2.0;
+				++failCount;
+			}
+			this->optimize();
+			++iterCount;
+		}
+		this->weightDistance_ = weightDistance0;
+		this->weightDynamicObstacle_ = weightDynamicObstacle0;
+		cout << "exit with iteration number: " << iterCount << endl;
 		return true;
 	}
 
