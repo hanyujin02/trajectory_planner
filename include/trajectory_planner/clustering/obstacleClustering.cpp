@@ -135,7 +135,7 @@ void obstacleClustering::runKmeans(const pointCluster& cluster, std::vector<poin
 	Eigen::Vector3d fpoint;
 	for (int i=0; i<int(cluster.points.size()); ++i){
 		Eigen::Vector3d diff = cluster.points[i] - cluster.centroid;
-		diff(2) = 0; 
+		// diff(2) = 0; 
 		double dist = diff.norm();
 
 		if (dist > maxDist){
@@ -155,7 +155,7 @@ void obstacleClustering::runKmeans(const pointCluster& cluster, std::vector<poin
 	Eigen::Vector3d ffpoint;
 	for (int i=0; i<int(cluster.points.size()); ++i){
 		Eigen::Vector3d diff = cluster.points[i] - fpoint;
-		diff(2) = 0;
+		// diff(2) = 0;
 		double dist = diff.norm();
 		if (dist > maxDist){
 			maxDist = dist;
