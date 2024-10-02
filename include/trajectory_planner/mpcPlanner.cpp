@@ -669,6 +669,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 				totalDist += (prevPos-pos).norm();
 			}
 			totalDist /= numConsistencyStep;
+			totalDist = max(totalDist, 0.1);
 			return totalDist;
 		}
 	}
@@ -683,6 +684,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			totalDist += (refPos-pos).norm();
 		}
 		totalDist /= state.size();
+		totalDist = max(totalDist, 0.1);
 		return totalDist;
 	}
 
