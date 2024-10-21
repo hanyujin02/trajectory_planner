@@ -133,6 +133,7 @@ namespace trajPlanner{
 	void mpcPlanner::registerPub(){
 		this->mpcTrajVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/mpc_trajectory", 10);
 		this->mpcTrajHistVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/traj_history", 10);
+		this->astarVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/astar_path", 10);
 		this->candidateTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/candidate_trajectories", 10);
 		this->localCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/local_cloud", 10);
 		this->staticObstacleVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/static_obstacles", 10);
@@ -147,6 +148,13 @@ namespace trajPlanner{
 
 	void mpcPlanner::setMap(const std::shared_ptr<mapManager::occMap>& map){
 		this->map_ = map;
+		this->pathSearch_.reset(new AStar);
+
+		// TODO: grid size
+		int maxGridX = 2 * int(5/this->map_->getRes());
+		int maxGridY = 2 * int(5/this->map_->getRes());
+		int maxGridZ = 2 * int(5/this->map_->getRes());
+		this->pathSearch_->initGridMap(map, Eigen::Vector3i(maxGridX, maxGridY, maxGridZ), this->zRangeMin_, this->zRangeMax_);
 	}
 
 	void mpcPlanner::staticObstacleClusteringCB(const ros::TimerEvent&){
@@ -381,7 +389,9 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     // // settings
     solver.settings()->setVerbosity(false);
     solver.settings()->setWarmStart(true);
-	solver.settings()->setTimeLimit(timeLimit);
+	if (not this->firstTime_){
+		solver.settings()->setTimeLimit(timeLimit);
+	}
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-3);
 	// solver.settings()->setDualInfeasibilityTollerance();
@@ -409,20 +419,59 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     Eigen::VectorXd QPSolution;
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
-
-	if(not this->firstTime_){
-		Eigen::VectorXd primalVariable;
-		Eigen::VectorXd dualVariable;
-		dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
-		primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
-		for (int i=0;i<mpcWindow+1;i++){
+	// std::vector<Eigen::Vector3d> searchedPath;
+	// Eigen::Vector3d pStart, pEnd;
+	// pStart = this->currPos_;
+	// int endIdx = min(this->lastRefStartIdx_+this->horizon_, int(this->inputTraj_.size()-1));
+	// for (int i=endIdx;i<this->inputTraj_.size();i++){
+	// 	if (not this->map_->isInflatedOccupied(this->inputTraj_[i])){
+	// 		pEnd = this->inputTraj_[i];
+	// 		break;
+	// 	}
+	// }
+	// if (this->pathSearch_->AstarSearch(this->map_->getRes(), pStart, pEnd)){
+	// 	searchedPath = this->pathSearch_->getPath();
+	// 	searchedPath[0] = pStart;
+	// 	searchedPath.push_back(pEnd);
+	// }
+	// if(not this->firstTime_){
+	Eigen::VectorXd primalVariable;
+	Eigen::VectorXd dualVariable;
+	dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
+	primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
+	for (int i=0;i<mpcWindow+1;i++){
+		if (not this->firstTime_){
 			primalVariable.block(numStates*i,0,numStates,1) = this->currentStatesSol_[i];
 		}
-		for(int i=0;i<mpcWindow;i++){
+		else{
+			Eigen::VectorXd initGuess;
+			initGuess = this->ref_[i];
+		}
+		// // TODO: add if pathsearch success
+		// Eigen::VectorXd initGuess;
+		// Eigen::Vector3d posGuess;
+		// if (i<this->astarPath_.size()){
+		// 	posGuess = this->astarPath_[i];
+		// }
+		// else{
+		// 	posGuess = this->astarPath_.back();
+		// }
+		// initGuess.setZero(numStates);
+		// initGuess.block(0,0,3,1) = posGuess;
+		// primalVariable.block(numStates*i,0,numStates,1) = initGuess;
+	}
+	for(int i=0;i<mpcWindow;i++){
+		if (not this->firstTime_){
 			primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = this->currentControlsSol_[i];
 		}
-		solver.setWarmStart(primalVariable, dualVariable);
+		else{
+			Eigen::VectorXd controlGuess;
+			controlGuess.setZero(numControls);
+			primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = controlGuess;
+		}
 	}
+	solver.setWarmStart(primalVariable, dualVariable);
+	// }
 	// solve the QP problem
 	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
 		return 0;
@@ -1077,14 +1126,41 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		}
 		this->lastRefStartIdx_ = startIdx; // update start idx
 		referenceTraj.clear();
-		for (int i=startIdx; i<startIdx+this->horizon_; ++i){
-			if (i < int(this->inputTraj_.size())){
-				referenceTraj.push_back(this->inputTraj_[i]);
+		// std::vector<Eigen::Vector3d> searchedPath;
+		// Eigen::Vector3d pStart, pEnd;
+		// pStart = this->currPos_;
+		// int endIdx = min(startIdx+this->horizon_, int(this->inputTraj_.size()-1));
+		// for (int i=endIdx;i<this->inputTraj_.size();i++){
+		// 	if (not this->map_->isInflatedOccupied(this->inputTraj_[i])){
+		// 		pEnd = this->inputTraj_[i];
+		// 		break;
+		// 	}
+		// }
+		// bool pathSearchSuccess = this->pathSearch_->AstarSearch(this->maxVel_*this->ts_, pStart, pEnd);
+		// if (pathSearchSuccess){
+		// 	searchedPath = this->pathSearch_->getPath();
+		// 	searchedPath[0] = pStart;
+		// 	searchedPath.push_back(pEnd);
+		// 	for (int i=startIdx; i<startIdx+this->horizon_; ++i){
+		// 		if (i<searchedPath.size()){
+		// 			referenceTraj.push_back(searchedPath[i]);
+		// 		}
+		// 		else{
+		// 			referenceTraj.push_back(searchedPath.back());
+		// 		}
+		// 	}
+		// 	this->astarPath_ = searchedPath;
+		// }
+		// else{
+			for (int i=startIdx; i<startIdx+this->horizon_; ++i){
+				if (i < int(this->inputTraj_.size())){
+					referenceTraj.push_back(this->inputTraj_[i]);
+				}
+				else{
+					referenceTraj.push_back(this->inputTraj_.back());
+				}
 			}
-			else{
-				referenceTraj.push_back(this->inputTraj_.back());
-			}
-		}
+		// }
 	}
 
 
@@ -1190,6 +1266,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		this->publishLocalCloud();
 		this->publishStaticObstacles();
 		this->publishDynamicObstacles();
+		this->publishAstarPath();
 	}
 
 	void mpcPlanner::publishMPCTrajectory(){
@@ -1197,6 +1274,40 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			nav_msgs::Path traj;
 			this->getTrajectory(traj);
 			this->mpcTrajVisPub_.publish(traj);
+		}
+	}
+
+	void mpcPlanner::publishAstarPath(){
+		if (this->astarPath_.size()>0){
+			visualization_msgs::MarkerArray msg;
+			std::vector<visualization_msgs::Marker> pointVec;
+			visualization_msgs::Marker point;
+			int pointCount = 0;
+			std::vector<Eigen::Vector3d> path = this->astarPath_;
+			for (size_t j=0; j<path.size(); ++j){
+				Eigen::Vector3d p = path[j];
+				point.header.frame_id = "map";
+				point.header.stamp = ros::Time::now();
+				point.ns = "astar_path";
+				point.id = pointCount;
+				point.type = visualization_msgs::Marker::SPHERE;
+				point.action = visualization_msgs::Marker::ADD;
+				point.pose.position.x = p(0);
+				point.pose.position.y = p(1);
+				point.pose.position.z = p(2);
+				point.lifetime = ros::Duration(0.5);
+				point.scale.x = 0.05;
+				point.scale.y = 0.05;
+				point.scale.z = 0.05;
+				point.color.a = 0.5;
+				point.color.r = 0.0;
+				point.color.g = 0.0;
+				point.color.b = 1.0;
+				pointVec.push_back(point);
+				++pointCount;	
+			}
+			msg.markers = pointVec;
+			this->astarVisPub_.publish(msg);
 		}
 	}
 

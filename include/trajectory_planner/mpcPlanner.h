@@ -20,6 +20,7 @@
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <trajectory_planner/third_party/OsqpEigen/OsqpEigen.h>
+#include <trajectory_planner/path_search/astarOcc.h>
 
 using std::cout; using std::endl;
 namespace trajPlanner{
@@ -30,6 +31,7 @@ namespace trajPlanner{
 		ros::NodeHandle nh_;
 		ros::Publisher mpcTrajVisPub_;
 		ros::Publisher mpcTrajHistVisPub_;
+		ros::Publisher astarVisPub_;
 		ros::Publisher candidateTrajPub_;
 		ros::Publisher localCloudPub_;
 		ros::Publisher staticObstacleVisPub_;
@@ -44,6 +46,7 @@ namespace trajPlanner{
 
 		std::shared_ptr<mapManager::occMap> map_;
 		std::shared_ptr<obstacleClustering> obclustering_;
+		std::shared_ptr<AStar> pathSearch_;
 		double ts_; // timestep
 		Eigen::Vector3d currPos_;
 		Eigen::Vector3d currVel_;
@@ -58,6 +61,7 @@ namespace trajPlanner{
 		Eigen::VectorXd primalVariable_;
 		Eigen::Matrix<double, Eigen::Dynamic, 1> dualVariable_;
 		std::vector<Eigen::Matrix<double, numStates, 1>> ref_;
+		std::vector<Eigen::Vector3d> astarPath_;
 		std::vector<Eigen::VectorXd> currentStatesSol_;
 		std::vector<Eigen::VectorXd> currentControlsSol_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
@@ -167,6 +171,7 @@ namespace trajPlanner{
 		// visualization
 		void visCB(const ros::TimerEvent&);
 		void publishMPCTrajectory();
+		void publishAstarPath();
 		void publishHistoricTrajectory();
 		void publishCandidateTrajectory();
 		void publishLocalCloud();
