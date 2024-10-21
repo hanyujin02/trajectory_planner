@@ -31,4 +31,4 @@ grid_map/visualization_truncate_height: 1.0
 # grid_map/map_path: "/home/zhefan/catkin_ws/src/CERLAB-Autonomy/trajectory_planner/map/ego_env.pcd"
 # grid_map/map_path: "/home/zhefan/catkin_ws/src/CERLAB-Autonomy/trajectory_planner/map/square_static_map2.pcd"
 # grid_map/map_path: "/home/jhy/catkin_ws/static_map.pcd"
-grid_map/map_path: "No"
+grid_map/map_path: "/home/hanyujin/catkin_ws/test.pcd"

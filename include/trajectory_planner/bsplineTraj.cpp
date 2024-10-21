@@ -398,16 +398,16 @@ namespace trajPlanner{
 		// step 1. find collision segment
 		this->findCollisionSeg(this->optData_.controlPoints, this->collisionSeg_); // upodate collision seg
 
-		// print the size of control points and size of collision segments
-		cout << "----------------OUR---------------------------" << endl;
-		cout << "total control points size: " << this->optData_.controlPoints.cols() << endl;
-		cout << "Number of collision segments: " << int(this->collisionSeg_.size()) << endl;
-		cout << "==================================================" << endl;
-		for (int i=0; i<int(this->collisionSeg_.size()); ++i){
-			cout << "collision seg: " << i << " from " <<  this->collisionSeg_[i].first << " to " << this->collisionSeg_[i].second << endl;
-		    cout << "First point: " << this->optData_.controlPoints.col(this->collisionSeg_[i].first).transpose() << " Second point: " <<  this->optData_.controlPoints.col(this->collisionSeg_[i].second).transpose() << endl;
-		}
-		cout << "==================================================" << endl;
+		// // print the size of control points and size of collision segments
+		// cout << "----------------OUR---------------------------" << endl;
+		// cout << "total control points size: " << this->optData_.controlPoints.cols() << endl;
+		// cout << "Number of collision segments: " << int(this->collisionSeg_.size()) << endl;
+		// cout << "==================================================" << endl;
+		// for (int i=0; i<int(this->collisionSeg_.size()); ++i){
+		// 	cout << "collision seg: " << i << " from " <<  this->collisionSeg_[i].first << " to " << this->collisionSeg_[i].second << endl;
+		//     cout << "First point: " << this->optData_.controlPoints.col(this->collisionSeg_[i].first).transpose() << " Second point: " <<  this->optData_.controlPoints.col(this->collisionSeg_[i].second).transpose() << endl;
+		// }
+		// cout << "==================================================" << endl;
 
 
 		// step 2. A* to find collision free path
@@ -419,16 +419,16 @@ namespace trajPlanner{
 		}
 
 
-		// print A star path for each segment
-		cout << "--------------------A star path------------------" << endl;
-		for (int i=0; i<int(this->astarPaths_.size()); ++i){
-			std::vector<Eigen::Vector3d> path = this->astarPaths_[i];
-			cout << "A* path " << i << endl;
-			for (int j=0; j<int(path.size()); ++j){
-				cout << "[" << path[j].transpose() << "]->";
-			}
-			cout << "end." << endl;
-		}
+		// // print A star path for each segment
+		// cout << "--------------------A star path------------------" << endl;
+		// for (int i=0; i<int(this->astarPaths_.size()); ++i){
+		// 	std::vector<Eigen::Vector3d> path = this->astarPaths_[i];
+		// 	cout << "A* path " << i << endl;
+		// 	for (int j=0; j<int(path.size()); ++j){
+		// 		cout << "[" << path[j].transpose() << "]->";
+		// 	}
+		// 	cout << "end." << endl;
+		// }
 
 
 		// step 3. Assign guide point and directions
@@ -436,18 +436,18 @@ namespace trajPlanner{
 		this->assignGuidePointsEgoGradient(this->astarPaths_, this->collisionSeg_);
 		
 
-		// print guide points and guide directions
-		cout << "--------------------Guide points and directions------------------" << endl;
-		for (int i=0; i<int(this->optData_.guidePoints.size()); ++i){
-			std::vector<Eigen::Vector3d> points = this->optData_.guidePoints[i];
-			std::vector<Eigen::Vector3d> directions = this->optData_.guideDirections[i];
-			if (int(points.size()) != 0){
-				cout << "gudie points and direction for control points: " << i << " [" << this->optData_.controlPoints.col(i).transpose() << "]" << endl;
-			}
-			for (int j=0; j<int(points.size()); ++j){ 
-				cout << j << " guide point: " << points[j].transpose() << " direction: " << directions[j].transpose() << endl; 
-			}
-		}
+		// // print guide points and guide directions
+		// cout << "--------------------Guide points and directions------------------" << endl;
+		// for (int i=0; i<int(this->optData_.guidePoints.size()); ++i){
+		// 	std::vector<Eigen::Vector3d> points = this->optData_.guidePoints[i];
+		// 	std::vector<Eigen::Vector3d> directions = this->optData_.guideDirections[i];
+		// 	if (int(points.size()) != 0){
+		// 		cout << "gudie points and direction for control points: " << i << " [" << this->optData_.controlPoints.col(i).transpose() << "]" << endl;
+		// 	}
+		// 	for (int j=0; j<int(points.size()); ++j){ 
+		// 		cout << j << " guide point: " << points[j].transpose() << " direction: " << directions[j].transpose() << endl; 
+		// 	}
+		// }
 
 
 		// step 4. call solver

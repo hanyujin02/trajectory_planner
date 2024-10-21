@@ -98,16 +98,16 @@ namespace ego_planner
       }
     }
 
-    // print collision segments
-    cout << "----------------EGO---------------------------" << endl;
-    cout << "total control points size (EGO): " << init_points.cols() << endl;
-    cout << "Number of collision segments (EGO): " << int(segment_ids.size()) << endl;
-    cout << "==================================================" << endl;
-    for (int i=0; i<int(segment_ids.size()); ++i){
-      cout << "collision seg (EGO): " << i << " from " <<  segment_ids[i].first << " to " << segment_ids[i].second << endl;
-      cout << "First point (EGO): " << init_points.col(segment_ids[i].first).transpose() << " Second point (EGO): " <<  init_points.col(segment_ids[i].second).transpose() << endl;
-    }
-    cout << "==================================================" << endl;    
+    // // print collision segments
+    // cout << "----------------EGO---------------------------" << endl;
+    // cout << "total control points size (EGO): " << init_points.cols() << endl;
+    // cout << "Number of collision segments (EGO): " << int(segment_ids.size()) << endl;
+    // cout << "==================================================" << endl;
+    // for (int i=0; i<int(segment_ids.size()); ++i){
+    //   cout << "collision seg (EGO): " << i << " from " <<  segment_ids[i].first << " to " << segment_ids[i].second << endl;
+    //   cout << "First point (EGO): " << init_points.col(segment_ids[i].first).transpose() << " Second point (EGO): " <<  init_points.col(segment_ids[i].second).transpose() << endl;
+    // }
+    // cout << "==================================================" << endl;    
 
     /*** a star search ***/
     vector<vector<Eigen::Vector3d>> a_star_pathes;
@@ -127,15 +127,15 @@ namespace ego_planner
       }
     }
 
-    cout << "--------------------A star path (EGO)------------------" << endl;
-    for (int i=0; i<int(a_star_pathes.size()); ++i){
-      std::vector<Eigen::Vector3d> path = a_star_pathes[i];
-      cout << "A* path " << i << endl;
-      for (int j=0; j<int(path.size()); ++j){
-        cout << setprecision (2) << "[" << path[j].transpose() << "]->";
-      }
-      cout << "end." << endl;
-    }
+    // cout << "--------------------A star path (EGO)------------------" << endl;
+    // for (int i=0; i<int(a_star_pathes.size()); ++i){
+    //   std::vector<Eigen::Vector3d> path = a_star_pathes[i];
+    //   cout << "A* path " << i << endl;
+    //   for (int j=0; j<int(path.size()); ++j){
+    //     cout << setprecision (2) << "[" << path[j].transpose() << "]->";
+    //   }
+    //   cout << "end." << endl;
+    // }
 
     /*** calculate bounds ***/
     int id_low_bound, id_up_bound;
@@ -327,18 +327,18 @@ namespace ego_planner
       }
     }
 
-    // print guide points and guide directions
-    cout << "--------------------Guide points and directions (EGO)------------------" << endl;
-    for (int i=0; i<int(cps_.base_point.size()); ++i){
-      std::vector<Eigen::Vector3d> points = cps_.base_point[i];
-      std::vector<Eigen::Vector3d> directions =  cps_.direction[i];
-      if (int(points.size()) != 0){
-        cout << "gudie points and direction for control points: " << i << " [" << init_points.col(i).transpose() << "]" << endl;
-      }
-      for (int j=0; j<int(points.size()); ++j){ 
-        cout << j << " guide point: " << points[j].transpose() << " direction: " << directions[j].transpose() << endl; 
-      }
-    }
+    // // print guide points and guide directions
+    // cout << "--------------------Guide points and directions (EGO)------------------" << endl;
+    // for (int i=0; i<int(cps_.base_point.size()); ++i){
+    //   std::vector<Eigen::Vector3d> points = cps_.base_point[i];
+    //   std::vector<Eigen::Vector3d> directions =  cps_.direction[i];
+    //   if (int(points.size()) != 0){
+    //     cout << "gudie points and direction for control points: " << i << " [" << init_points.col(i).transpose() << "]" << endl;
+    //   }
+    //   for (int j=0; j<int(points.size()); ++j){ 
+    //     cout << j << " guide point: " << points[j].transpose() << " direction: " << directions[j].transpose() << endl; 
+    //   }
+    // }
 
     return a_star_pathes;
   }

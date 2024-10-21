@@ -108,8 +108,8 @@ int main(int argc, char** argv){
 	waypointsVisPub = nh.advertise<visualization_msgs::MarkerArray>("/waypoints", 1000);
 	inputTrajPub = nh.advertise<nav_msgs::Path>("/input_traj", 1000);
 
-	double desiredVel = 1.0;
-	double desiredAcc = 1.0;
+	double desiredVel = 3.0;
+	double desiredAcc = 2.0;
 
 	std::shared_ptr<mapManager::occMap> map;
 	map.reset(new mapManager::occMap (nh));
@@ -122,7 +122,7 @@ int main(int argc, char** argv){
 
 	std::shared_ptr<trajPlanner::mpcPlanner> mp;
 	mp.reset(new trajPlanner::mpcPlanner (nh));
-	mp->updateMaxVel(desiredVel);
+	mp->updateMaxVel(desiredVel*1.5);
 	mp->updateMaxAcc(desiredAcc);
 	mp->setMap(map);
 
