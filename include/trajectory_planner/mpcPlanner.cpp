@@ -325,10 +325,10 @@ namespace trajPlanner{
 bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
 	std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef, const double &timeLimit){
 	// set the preview window
-	// if (this->firstTime_){
-	// 	this->currentStatesSol_.clear();
-	// 	this->currentControlsSol_.clear();
-	// }
+	if (this->firstTime_){
+		this->currentStatesSol_.clear();
+		this->currentControlsSol_.clear();
+	}
     const int mpcWindow = this->horizon_-1;
 	int numObs;
 	int numHalfSpace = this->numHalfSpace_;
@@ -419,22 +419,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     Eigen::VectorXd QPSolution;
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
-	// std::vector<Eigen::Vector3d> searchedPath;
-	// Eigen::Vector3d pStart, pEnd;
-	// pStart = this->currPos_;
-	// int endIdx = min(this->lastRefStartIdx_+this->horizon_, int(this->inputTraj_.size()-1));
-	// for (int i=endIdx;i<this->inputTraj_.size();i++){
-	// 	if (not this->map_->isInflatedOccupied(this->inputTraj_[i])){
-	// 		pEnd = this->inputTraj_[i];
-	// 		break;
-	// 	}
-	// }
-	// if (this->pathSearch_->AstarSearch(this->map_->getRes(), pStart, pEnd)){
-	// 	searchedPath = this->pathSearch_->getPath();
-	// 	searchedPath[0] = pStart;
-	// 	searchedPath.push_back(pEnd);
-	// }
-	// if(not this->firstTime_){
+
 	Eigen::VectorXd primalVariable;
 	Eigen::VectorXd dualVariable;
 	dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
@@ -447,18 +432,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			Eigen::VectorXd initGuess;
 			initGuess = this->ref_[i];
 		}
-		// // TODO: add if pathsearch success
-		// Eigen::VectorXd initGuess;
-		// Eigen::Vector3d posGuess;
-		// if (i<this->astarPath_.size()){
-		// 	posGuess = this->astarPath_[i];
-		// }
-		// else{
-		// 	posGuess = this->astarPath_.back();
-		// }
-		// initGuess.setZero(numStates);
-		// initGuess.block(0,0,3,1) = posGuess;
-		// primalVariable.block(numStates*i,0,numStates,1) = initGuess;
 	}
 	for(int i=0;i<mpcWindow;i++){
 		if (not this->firstTime_){
@@ -506,9 +479,16 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		std::vector<Eigen::VectorXd> currentStatesSol;
 		std::vector<Eigen::VectorXd> currentControlsSol;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos = this->dynamicObstaclesPos_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize = this->dynamicObstaclesSize_;
+		if(this->firstTime_){
+			staticObstacles.clear();
+			dynamicObstaclesPos.clear();
+			dynamicObstaclesSize.clear();
+		}
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 		this->getXRef(xRef);
-		bool successSolve = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, currentStatesSol, currentControlsSol, xRef);
+		bool successSolve = this->solveTraj(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol, currentControlsSol, xRef);
 		if (successSolve){
 			this->currentStatesSol_ = currentStatesSol;
 			this->currentControlsSol_ = currentControlsSol;
@@ -537,7 +517,20 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesPosComb;
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesSizeComb;
 		bool validTraj;
-		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<staticObstacle> staticObstacles;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize;
+		if (not this->firstTime_){
+			staticObstacles = this->obclustering_->getStaticObstacles();
+			dynamicObstaclesPos = this->dynamicObstaclesPos_;
+			dynamicObstaclesSize = this->dynamicObstaclesSize_;
+		}
+		else{
+			staticObstacles.clear();
+			dynamicObstaclesPos.clear();
+			dynamicObstaclesSize.clear();
+		}
+
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 		this->getXRef(xRef);
 		if (this->obPredPos_.size()){
@@ -586,7 +579,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			this->trajScore_.clear();
 			std::vector<Eigen::VectorXd> currentStatesSol;
 			std::vector<Eigen::VectorXd> currentControlsSol;
-			validTraj = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, currentStatesSol, currentControlsSol, xRef);
+			validTraj = this->solveTraj(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol, currentControlsSol, xRef);
 			if (validTraj){
 				this->currentStatesSol_ = currentStatesSol;
 				this->currentControlsSol_ = currentControlsSol;
