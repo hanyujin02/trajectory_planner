@@ -133,7 +133,6 @@ namespace trajPlanner{
 	void mpcPlanner::registerPub(){
 		this->mpcTrajVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/mpc_trajectory", 10);
 		this->mpcTrajHistVisPub_ = this->nh_.advertise<nav_msgs::Path>(this->ns_ + "/traj_history", 10);
-		this->astarVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/astar_path", 10);
 		this->candidateTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/candidate_trajectories", 10);
 		this->localCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/local_cloud", 10);
 		this->staticObstacleVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/static_obstacles", 10);
@@ -148,13 +147,6 @@ namespace trajPlanner{
 
 	void mpcPlanner::setMap(const std::shared_ptr<mapManager::occMap>& map){
 		this->map_ = map;
-		this->pathSearch_.reset(new AStar);
-
-		// TODO: grid size
-		int maxGridX = 2 * int(5/this->map_->getRes());
-		int maxGridY = 2 * int(5/this->map_->getRes());
-		int maxGridZ = 2 * int(5/this->map_->getRes());
-		this->pathSearch_->initGridMap(map, Eigen::Vector3i(maxGridX, maxGridY, maxGridZ), this->zRangeMin_, this->zRangeMax_);
 	}
 
 	void mpcPlanner::staticObstacleClusteringCB(const ros::TimerEvent&){
@@ -1232,7 +1224,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		this->publishLocalCloud();
 		this->publishStaticObstacles();
 		this->publishDynamicObstacles();
-		this->publishAstarPath();
 	}
 
 	void mpcPlanner::publishMPCTrajectory(){
@@ -1240,40 +1231,6 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			nav_msgs::Path traj;
 			this->getTrajectory(traj);
 			this->mpcTrajVisPub_.publish(traj);
-		}
-	}
-
-	void mpcPlanner::publishAstarPath(){
-		if (this->astarPath_.size()>0){
-			visualization_msgs::MarkerArray msg;
-			std::vector<visualization_msgs::Marker> pointVec;
-			visualization_msgs::Marker point;
-			int pointCount = 0;
-			std::vector<Eigen::Vector3d> path = this->astarPath_;
-			for (size_t j=0; j<path.size(); ++j){
-				Eigen::Vector3d p = path[j];
-				point.header.frame_id = "map";
-				point.header.stamp = ros::Time::now();
-				point.ns = "astar_path";
-				point.id = pointCount;
-				point.type = visualization_msgs::Marker::SPHERE;
-				point.action = visualization_msgs::Marker::ADD;
-				point.pose.position.x = p(0);
-				point.pose.position.y = p(1);
-				point.pose.position.z = p(2);
-				point.lifetime = ros::Duration(0.5);
-				point.scale.x = 0.05;
-				point.scale.y = 0.05;
-				point.scale.z = 0.05;
-				point.color.a = 0.5;
-				point.color.r = 0.0;
-				point.color.g = 0.0;
-				point.color.b = 1.0;
-				pointVec.push_back(point);
-				++pointCount;	
-			}
-			msg.markers = pointVec;
-			this->astarVisPub_.publish(msg);
 		}
 	}
 
