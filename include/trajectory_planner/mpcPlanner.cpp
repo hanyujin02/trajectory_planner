@@ -525,7 +525,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			dynamicObstaclesPos = this->dynamicObstaclesPos_;
 			dynamicObstaclesSize = this->dynamicObstaclesSize_;
 		}
-		else{
+		else{//don't linearize constraints for the first time
 			staticObstacles.clear();
 			dynamicObstaclesPos.clear();
 			dynamicObstaclesSize.clear();
@@ -533,7 +533,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 		this->getXRef(xRef);
-		if (this->obPredPos_.size()){
+		if (this->obPredPos_.size() and not this->firstTime_){
 			this->getIntentComb(obIdx, obstaclesPosComb, obstaclesSizeComb, xRef);
 			bool successSolve;
 			for (int i=0; i<int(obstaclesPosComb.size());i++){
@@ -1119,41 +1119,14 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		}
 		this->lastRefStartIdx_ = startIdx; // update start idx
 		referenceTraj.clear();
-		// std::vector<Eigen::Vector3d> searchedPath;
-		// Eigen::Vector3d pStart, pEnd;
-		// pStart = this->currPos_;
-		// int endIdx = min(startIdx+this->horizon_, int(this->inputTraj_.size()-1));
-		// for (int i=endIdx;i<this->inputTraj_.size();i++){
-		// 	if (not this->map_->isInflatedOccupied(this->inputTraj_[i])){
-		// 		pEnd = this->inputTraj_[i];
-		// 		break;
-		// 	}
-		// }
-		// bool pathSearchSuccess = this->pathSearch_->AstarSearch(this->maxVel_*this->ts_, pStart, pEnd);
-		// if (pathSearchSuccess){
-		// 	searchedPath = this->pathSearch_->getPath();
-		// 	searchedPath[0] = pStart;
-		// 	searchedPath.push_back(pEnd);
-		// 	for (int i=startIdx; i<startIdx+this->horizon_; ++i){
-		// 		if (i<searchedPath.size()){
-		// 			referenceTraj.push_back(searchedPath[i]);
-		// 		}
-		// 		else{
-		// 			referenceTraj.push_back(searchedPath.back());
-		// 		}
-		// 	}
-		// 	this->astarPath_ = searchedPath;
-		// }
-		// else{
-			for (int i=startIdx; i<startIdx+this->horizon_; ++i){
-				if (i < int(this->inputTraj_.size())){
-					referenceTraj.push_back(this->inputTraj_[i]);
-				}
-				else{
-					referenceTraj.push_back(this->inputTraj_.back());
-				}
+		for (int i=startIdx; i<startIdx+this->horizon_; ++i){
+			if (i < int(this->inputTraj_.size())){
+				referenceTraj.push_back(this->inputTraj_[i]);
 			}
-		// }
+			else{
+				referenceTraj.push_back(this->inputTraj_.back());
+			}
+		}
 	}
 
 
