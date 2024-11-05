@@ -317,10 +317,10 @@ namespace trajPlanner{
 bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
 	std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef, const double &timeLimit){
 	// set the preview window
-	// if (this->firstTime_){
-	// 	this->currentStatesSol_.clear();
-	// 	this->currentControlsSol_.clear();
-	// }
+	if (this->firstTime_){
+		this->currentStatesSol_.clear();
+		this->currentControlsSol_.clear();
+	}
     const int mpcWindow = this->horizon_-1;
 	int numObs;
 	int numHalfSpace = this->numHalfSpace_;
@@ -381,7 +381,9 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     // // settings
     solver.settings()->setVerbosity(false);
     solver.settings()->setWarmStart(true);
-	solver.settings()->setTimeLimit(timeLimit);
+	if (not this->firstTime_){
+		solver.settings()->setTimeLimit(timeLimit);
+	}
 	// solver.settings()->setAlpha(1.8);
 	// solver.settings()->setDualInfeasibilityTolerance(1e-3);
 	// solver.settings()->setDualInfeasibilityTollerance();
@@ -457,9 +459,16 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		std::vector<Eigen::VectorXd> currentStatesSol;
 		std::vector<Eigen::VectorXd> currentControlsSol;
 		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos = this->dynamicObstaclesPos_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize = this->dynamicObstaclesSize_;
+		if(this->firstTime_){
+			staticObstacles.clear();
+			dynamicObstaclesPos.clear();
+			dynamicObstaclesSize.clear();
+		}
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 		this->getXRef(xRef);
-		bool successSolve = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, currentStatesSol, currentControlsSol, xRef);
+		bool successSolve = this->solveTraj(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol, currentControlsSol, xRef);
 		if (successSolve){
 			this->currentStatesSol_ = currentStatesSol;
 			this->currentControlsSol_ = currentControlsSol;
@@ -488,10 +497,23 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesPosComb;
 		std::vector<std::vector<std::vector<Eigen::Vector3d>>> obstaclesSizeComb;
 		bool validTraj;
-		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<staticObstacle> staticObstacles;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize;
+		if (not this->firstTime_){
+			staticObstacles = this->obclustering_->getStaticObstacles();
+			dynamicObstaclesPos = this->dynamicObstaclesPos_;
+			dynamicObstaclesSize = this->dynamicObstaclesSize_;
+		}
+		else{//don't linearize constraints for the first time
+			staticObstacles.clear();
+			dynamicObstaclesPos.clear();
+			dynamicObstaclesSize.clear();
+		}
+
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
 		this->getXRef(xRef);
-		if (this->obPredPos_.size()){
+		if (this->obPredPos_.size() and not this->firstTime_){
 			this->getIntentComb(obIdx, obstaclesPosComb, obstaclesSizeComb, xRef);
 			bool successSolve;
 			for (int i=0; i<int(obstaclesPosComb.size());i++){
@@ -537,7 +559,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			this->trajScore_.clear();
 			std::vector<Eigen::VectorXd> currentStatesSol;
 			std::vector<Eigen::VectorXd> currentControlsSol;
-			validTraj = this->solveTraj(staticObstacles, this->dynamicObstaclesPos_, this->dynamicObstaclesSize_, currentStatesSol, currentControlsSol, xRef);
+			validTraj = this->solveTraj(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol, currentControlsSol, xRef);
 			if (validTraj){
 				this->currentStatesSol_ = currentStatesSol;
 				this->currentControlsSol_ = currentControlsSol;
