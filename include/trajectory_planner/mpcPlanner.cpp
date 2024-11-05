@@ -412,19 +412,31 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 	Eigen::VectorXd control;
 	Eigen::VectorXd state;
 
-	if(not this->firstTime_){
-		Eigen::VectorXd primalVariable;
-		Eigen::VectorXd dualVariable;
-		dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
-		primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
-		for (int i=0;i<mpcWindow+1;i++){
+	Eigen::VectorXd primalVariable;
+	Eigen::VectorXd dualVariable;
+	dualVariable.setZero(numStates * (mpcWindow + 1)+numStates * (mpcWindow + 1)+numControls*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
+	primalVariable.setZero(numStates * (mpcWindow + 1) + numControls * mpcWindow);
+	for (int i=0;i<mpcWindow+1;i++){
+		if (not this->firstTime_){
 			primalVariable.block(numStates*i,0,numStates,1) = this->currentStatesSol_[i];
 		}
-		for(int i=0;i<mpcWindow;i++){
+		else{
+			Eigen::VectorXd initGuess;
+			initGuess = this->ref_[i];
+		}
+	}
+	for(int i=0;i<mpcWindow;i++){
+		if (not this->firstTime_){
 			primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = this->currentControlsSol_[i];
 		}
-		solver.setWarmStart(primalVariable, dualVariable);
+		else{
+			Eigen::VectorXd controlGuess;
+			controlGuess.setZero(numControls);
+			primalVariable.block(numStates*(mpcWindow+1)+numControls*i, 0, numControls, 1) = controlGuess;
+		}
 	}
+	solver.setWarmStart(primalVariable, dualVariable);
+	// }
 	// solve the QP problem
 	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
 		return 0;
