@@ -421,8 +421,9 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			primalVariable.block(numStates*i,0,numStates,1) = this->currentStatesSol_[i];
 		}
 		else{
-			Eigen::VectorXd initGuess;
-			initGuess = this->ref_[i];
+			Eigen::VectorXd stateGuess;
+			stateGuess.setZero(numStates);
+			primalVariable.block(numStates*i,0,numStates,1) = stateGuess;
 		}
 	}
 	for(int i=0;i<mpcWindow;i++){
