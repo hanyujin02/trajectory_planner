@@ -216,7 +216,7 @@ int main(int argc, char** argv){
 			// std::condition_variable cv;
 			bool planSuccess;
 			// planSuccess = mp->makePlanCG();
-			planSuccess = mp->makePlan();
+			planSuccess = mp->makePlanBM();
 			ros::Time mpcEndTime = ros::Time::now();
 			cout << "[Test MPC Node]: MPC runtime [s]: " << (mpcEndTime - mpcStartTime).toSec() << "\t\r" << std::flush;;
 			if (planSuccess){

@@ -35,15 +35,15 @@ static int acado_nWSR;
 #if ACADO_COMPUTE_COVARIANCE_MATRIX == 1
 static SolutionAnalysis acado_sa;
 #endif /* ACADO_COMPUTE_COVARIANCE_MATRIX */
-#include <iostream>
+
 int acado_solve( void )
 {
 	acado_nWSR = QPOASES_NWSRMAX;
 
-	QProblem qp(150, 1230);
-	real_t cputime=0.08;
-	memset(&acadoWorkspace.y,0,sizeof(acadoWorkspace.y));
-	returnValue retVal = qp.init(acadoWorkspace.H, acadoWorkspace.g, acadoWorkspace.A, acadoWorkspace.lb, acadoWorkspace.ub, acadoWorkspace.lbA, acadoWorkspace.ubA, acado_nWSR,acadoWorkspace.y,&cputime);
+	QProblem qp(155, 1736);
+	
+	returnValue retVal = qp.init(acadoWorkspace.H, acadoWorkspace.g, acadoWorkspace.A, acadoWorkspace.lb, acadoWorkspace.ub, acadoWorkspace.lbA, acadoWorkspace.ubA, acado_nWSR);
+
     qp.getPrimalSolution( acadoWorkspace.x );
     qp.getDualSolution( acadoWorkspace.y );
 	
