@@ -204,13 +204,17 @@ namespace trajPlanner{
 		cout << "[BsplineTraj]: Max acceleration is updated to: " << this->maxAcc_ << "m/s^2" << endl;
 	}
 
-	bool bsplineTraj::inputPathCheck(const nav_msgs::Path & path, nav_msgs::Path& adjustedPath, double dt, double& finalTime){	
+	bool bsplineTraj::inputPathCheck(const nav_msgs::Path & path, nav_msgs::Path& adjustedPath, double dt, double& finalTime, const bool &adjustLength){	
 		if (path.poses.size() == 0) return true; // updatePath can deal with this
 
 		std::vector<Eigen::Vector3d> curveFitPoints, adjustedCurveFitPoints;
-		this->pathMsgToEigenPoints(path, curveFitPoints);
-		// this->adjustPathLength(curveFitPoints, adjustedCurveFitPoints);
-		this->adjustPathLengthDirect(curveFitPoints, adjustedCurveFitPoints);
+		if (adjustLength){
+			this->pathMsgToEigenPoints(path, curveFitPoints);
+			this->adjustPathLengthDirect(curveFitPoints, adjustedCurveFitPoints);		
+		}
+		else{
+			this->pathMsgToEigenPoints(path, adjustedCurveFitPoints);
+		}
 
 		// find distance between trajectory points
 		for (size_t i=0; i<adjustedCurveFitPoints.size()-1; ++i){
@@ -287,7 +291,7 @@ namespace trajPlanner{
 		return true;
 	}
 
-	bool bsplineTraj::updatePath(const nav_msgs::Path& adjustedPath, const std::vector<Eigen::Vector3d>& startEndConditions){
+	bool bsplineTraj::updatePath(const nav_msgs::Path& adjustedPath, const std::vector<Eigen::Vector3d>& startEndConditions, const bool &adjustLength){
 		Eigen::Vector3d goal (adjustedPath.poses.back().pose.position.x, adjustedPath.poses.back().pose.position.y, adjustedPath.poses.back().pose.position.z);
 		if (this->map_->isInflatedOccupied(goal)){
 			cout << "[bsplineTraj]: Invalid goal position: " << goal.transpose() << endl;
@@ -295,8 +299,14 @@ namespace trajPlanner{
 		}
 
 		std::vector<Eigen::Vector3d> adjustedPathVec, inputPathVec;
-		this->pathMsgToEigenPoints(adjustedPath, adjustedPathVec);
-		this->adjustPathLengthDirect(adjustedPathVec, inputPathVec);
+		if (adjustLength){
+			this->pathMsgToEigenPoints(adjustedPath, adjustedPathVec);
+			this->adjustPathLengthDirect(adjustedPathVec, inputPathVec);
+		}
+		else{
+			this->pathMsgToEigenPoints(adjustedPath, inputPathVec);
+		}
+
 		nav_msgs::Path inputPath;
 		this->eigenPointsToPathMsg(inputPathVec, inputPath);
 		// nav_msgs::Path inputPath = adjustedPath;
