@@ -261,7 +261,7 @@ namespace trajPlanner{
 		this->inputTraj_ = path;
 		this->firstTime_ = true;
 		this->stateReceived_ = false;
-		this->trajHist_.clear();
+		// this->trajHist_.clear();
 		this->lastRefStartIdx_ = 0;
 	}
 

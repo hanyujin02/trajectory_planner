@@ -319,9 +319,11 @@ namespace trajPlanner{
 		} 
 		this->clear();
 		std::vector<Eigen::Vector3d> adjustedCurveFitPoints;
+		// cout<<"input start: "<< inputPath.poses[0]<< ", input end: "<<inputPath.poses.back()<<endl;
 		this->pathMsgToEigenPoints(inputPath, adjustedCurveFitPoints);
 		Eigen::MatrixXd controlPoints;
 		this->bspline_.parameterizeToBspline(this->controlPointsTs_, adjustedCurveFitPoints, startEndConditions, controlPoints);
+		// cout<<"control point start: "<< controlPoints.col(0)<< ", control point end: "<<controlPoints.col(controlPoints.cols()-1)<<endl;
 		this->optData_.controlPoints = controlPoints;
 		int controlPointNum = controlPoints.cols();
 		this->optData_.guidePoints.resize(controlPointNum);
