@@ -42,6 +42,9 @@ namespace trajPlanner{
 		static const int numStates = 8;
 		static const int numControls = 5;
 
+		static const int numStates2D = 6;
+		static const int numControls2D = 4;
+
 		std::shared_ptr<mapManager::occMap> map_;
 		std::shared_ptr<obstacleClustering> obclustering_;
 		double ts_; // timestep
@@ -58,10 +61,13 @@ namespace trajPlanner{
 		Eigen::VectorXd primalVariable_;
 		Eigen::Matrix<double, Eigen::Dynamic, 1> dualVariable_;
 		std::vector<Eigen::Matrix<double, numStates, 1>> ref_;
+		std::vector<Eigen::Matrix<double, numStates2D, 1>> ref2D_;
 		std::vector<Eigen::VectorXd> currentStatesSol_;
 		std::vector<Eigen::VectorXd> currentControlsSol_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateStates_;
 		std::vector<std::vector<Eigen::VectorXd>> candidateControls_;
+		std::vector<Eigen::VectorXd> currentStatesSol2D_;
+		std::vector<Eigen::VectorXd> currentControlsSol2D_;
 		std::vector<Eigen::Vector3d> currentTraj_;
 		std::vector<Eigen::Vector3d> trajHist_;
 		std::vector<Eigen::Vector3d> currCloud_;
@@ -77,6 +83,7 @@ namespace trajPlanner{
 
 
 		// parameters
+		bool planInZ_;
 		int horizon_;
 		double maxVel_ = 1.0;
 		double maxAcc_ = 1.0;
@@ -94,6 +101,7 @@ namespace trajPlanner{
 		double groundHeight_;
 		double ceilingHeight_;
 		double angle_;
+		double takeOffHeight_;
 
 	public:
 		mpcPlanner(const ros::NodeHandle& nh);
@@ -117,7 +125,9 @@ namespace trajPlanner{
 		void updateDynamicObstacles(const std::vector<Eigen::Vector3d>& obstaclesPos, const std::vector<Eigen::Vector3d>& obstaclesVel, const std::vector<Eigen::Vector3d>& obstaclesSize); // position, velocity, size
 		void updatePredObstacles(const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predPos, const std::vector<std::vector<std::vector<Eigen::Vector3d>>> &predSize, const std::vector<Eigen::VectorXd> &intentProb);
 		bool solveTraj(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates, 1>> &xRef, const double &timeLimit = 1e10);
+		bool solveTraj2D(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates2D, 1>> &xRef, const double &timeLimit = 1e10);
 		bool makePlan();
+		bool makePlan2D();
 		bool makePlanWithPred();
 		void findClosestObstacle(int &obIdx, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
 		void getIntentComb(int &obIdx, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombPos, std::vector<std::vector<std::vector<Eigen::Vector3d>>> &intentCombSize, const std::vector<Eigen::Matrix<double, numStates, 1>> &xRef);
@@ -131,7 +141,7 @@ namespace trajPlanner{
 		// OSQP Solver Setup
 		void setDynamicsMatrices(Eigen::Matrix<double, numStates, numStates> &A, Eigen::Matrix<double, numStates, numControls> &B); //TODO
 		void setInequalityConstraints(Eigen::Matrix<double, numStates, 1> &xMax, Eigen::Matrix<double, numStates, 1> &xMin, Eigen::Matrix<double, numControls, 1> &uMax, Eigen::Matrix<double, numControls, 1> &uMin); //TODO
-		void getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef);
+		bool getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef);
 		void setWeightMatrices(Eigen::DiagonalMatrix<double,numStates> &Q, Eigen::DiagonalMatrix<double, numControls> &R);
 		void castMPCToQPHessian(const Eigen::DiagonalMatrix<double,numStates> &Q, const Eigen::DiagonalMatrix<double,numControls> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix);
 		void castMPCToQPGradient(const Eigen::DiagonalMatrix<double,numStates> &Q, const std::vector<Eigen::Matrix<double, numStates, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient);
@@ -151,7 +161,26 @@ namespace trajPlanner{
 			int &numObs, int mpcWindow, 
 			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 			std::vector<std::vector<int>> &isDyamic);
-	
+		
+		// plan in 2D functions
+		void setTakeOffHeight(const double &takeOffHeight);
+		void setDynamicsMatrices2D(Eigen::Matrix<double, numStates2D, numStates2D> &A, Eigen::Matrix<double, numStates2D, numControls2D> &B); //TODO
+		void setInequalityConstraints2D(Eigen::Matrix<double, numStates2D, 1> &xMax, Eigen::Matrix<double, numStates2D, 1> &xMin, Eigen::Matrix<double, numControls2D, 1> &uMax, Eigen::Matrix<double, numControls2D, 1> &uMin); //TODO
+		bool getXRef2D(std::vector<Eigen::Matrix<double, numStates2D, 1>>& xRef);
+		void setWeightMatrices2D(Eigen::DiagonalMatrix<double,numStates2D> &Q, Eigen::DiagonalMatrix<double, numControls2D> &R);
+		void castMPCToQPHessian2D(const Eigen::DiagonalMatrix<double,numStates2D> &Q, const Eigen::DiagonalMatrix<double,numControls2D> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix);
+		void castMPCToQPGradient2D(const Eigen::DiagonalMatrix<double,numStates2D> &Q, const std::vector<Eigen::Matrix<double, numStates2D, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient);
+		void castMPCToQPConstraintMatrix2D(Eigen::Matrix<double, numStates2D, numStates2D> &A, Eigen::Matrix<double, numStates2D, numControls2D> &B, 
+			Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, 
+			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw,
+			std::vector<std::vector<int>> &isDynamic);
+		void castMPCToQPConstraintVectors2D(Eigen::Matrix<double,numStates2D,1> &xMax,
+			Eigen::Matrix<double,numStates2D,1> &xMin,
+			Eigen::Matrix<double,numControls2D,1> &uMax,
+			Eigen::Matrix<double,numControls2D,1> &uMin,
+			const Eigen::Matrix<double, numStates2D, 1>& x0,
+			Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, int numObs, int mpcWindow, 
+			std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw);
 
 		// user functions
 		void getReferenceTraj(std::vector<Eigen::Vector3d>& referenceTraj);

@@ -17,6 +17,14 @@ namespace trajPlanner{
 	}
 
 	void mpcPlanner::initParam(){ 
+		// planning in z direction or not
+		if (not this->nh_.getParam(this->ns_ + "/plan_in_z", this->planInZ_)){
+			this->planInZ_ = true;
+			cout << this->hint_ << ": No enable planning in z param. Use default: true" << endl;
+		}
+		else{
+			cout << this->hint_ << ": Enable planning in z is set to: " << this->planInZ_ << endl;
+		}
 		// planning horizon
 		if (not this->nh_.getParam(this->ns_ + "/horizon", this->horizon_)){
 			this->horizon_ = 20;
@@ -463,7 +471,164 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
     return 1;
 }
 
+bool mpcPlanner::solveTraj2D(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, 
+	std::vector<Eigen::VectorXd> &statesSol, std::vector<Eigen::VectorXd> &controlsSol, std::vector<Eigen::Matrix<double, numStates2D, 1>> &xRef, const double &timeLimit){
+	// set the preview window
+	if (this->firstTime_){
+		this->currentStatesSol2D_.clear();
+		this->currentControlsSol2D_.clear();
+	}
+    const int mpcWindow = this->horizon_-1;
+	int numObs;
+	int numHalfSpace = this->numHalfSpace_;
+
+    // // allocate the dynamics matrices
+    Eigen::Matrix<double, numStates2D, numStates2D> a;
+    Eigen::Matrix<double, numStates2D, numControls2D> b;
+
+    // // allocate the constraints vector
+    Eigen::Matrix<double, numStates2D, 1> xMax;
+    Eigen::Matrix<double, numStates2D, 1> xMin;
+    Eigen::Matrix<double, numControls2D, 1> uMax;
+    Eigen::Matrix<double, numControls2D, 1> uMin;
+
+    // allocate the weight matrices
+    Eigen::DiagonalMatrix<double, numStates2D> Q;
+    Eigen::DiagonalMatrix<double, numControls2D> R;
+
+    // allocate the initial and the reference state space
+    Eigen::Matrix<double, numStates2D, 1> x0;
+	x0.setZero();
+	x0(0,0) = this->currPos_(0);
+	x0(1,0) = this->currPos_(1);
+	x0(2,0) = this->currVel_(0);
+	x0(3,0) = this->currVel_(1);
+    // allocate QP problem matrices and vectores
+    Eigen::SparseMatrix<double> hessian;
+    Eigen::VectorXd gradient;
+    Eigen::SparseMatrix<double> constraintMatrix;
+    Eigen::Matrix<double, Eigen::Dynamic, 1> lowerBound;
+    Eigen::Matrix<double, Eigen::Dynamic, 1> upperBound;
+
+	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> oxyz;
+	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> osize;
+	std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> yaw;
+	std::vector<std::vector<int>> isDynamic;
+	// std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+	// std::vector<staticObstacle> staticObstacles;
+	updateObstacleParam(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, numObs, mpcWindow, oxyz, osize, yaw, isDynamic);
+
+    // set MPC problem quantities
+    setDynamicsMatrices2D(a, b);
+    setInequalityConstraints2D(xMax, xMin, uMax, uMin);
+    setWeightMatrices2D(Q, R);
+
+    // cast the MPC problem as QP problem
+    castMPCToQPHessian2D(Q, R, mpcWindow, hessian);
+    castMPCToQPGradient2D(Q, xRef, mpcWindow, gradient);
+    // castMPCToQPConstraintMatrix(a, b, mpcWindow, linearMatrix);
+	castMPCToQPConstraintMatrix2D(a, b,constraintMatrix, numObs, mpcWindow, oxyz, osize, yaw, isDynamic);
+    castMPCToQPConstraintVectors2D(xMax, xMin, uMax, uMin, x0, lowerBound, upperBound, numObs,mpcWindow,oxyz,osize,yaw);
+    // // instantiate the solver
+    OsqpEigen::Solver solver;
+	// OSQPWrapper::OptimizatorSolver solver;
+
+    // // settings
+    solver.settings()->setVerbosity(false);
+    solver.settings()->setWarmStart(true);
+	if (not this->firstTime_){
+		solver.settings()->setTimeLimit(timeLimit);
+	}
+	// solver.settings()->setAlpha(1.8);
+	// solver.settings()->setDualInfeasibilityTolerance(1e-3);
+	// solver.settings()->setDualInfeasibilityTollerance();
+	// solver.settings()->setAdaptiveRho()
+    // set the initial data of the QP solver
+    solver.data()->setNumberOfVariables(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow);
+    // solver.data()->setNumberOfConstraints(numStates * (mpcWindow + 1) + 3*(mpcWindow+1)+ numControls * mpcWindow + numOb*mpcWindow);
+    solver.data()->setNumberOfConstraints(numStates2D * (mpcWindow + 1)+numStates2D * (mpcWindow + 1)+numControls2D*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
+	if (!solver.data()->setHessianMatrix(hessian))
+        return 0;
+    if (!solver.data()->setGradient(gradient))
+        return 0;
+    if (!solver.data()->setLinearConstraintsMatrix(constraintMatrix))
+        return 0;
+    if (!solver.data()->setLowerBound(lowerBound))
+        return 0;
+    if (!solver.data()->setUpperBound(upperBound))
+        return 0;
+
+    // instantiate the solver
+    if (!solver.initSolver())
+        return 0;
+    // controller input and QPSolution vector
+    // Eigen::Vector4d ctr;
+    Eigen::VectorXd QPSolution;
+	Eigen::VectorXd control;
+	Eigen::VectorXd state;
+
+	Eigen::VectorXd primalVariable;
+	Eigen::VectorXd dualVariable;
+	dualVariable.setZero(numStates2D * (mpcWindow + 1)+numStates2D * (mpcWindow + 1)+numControls2D*mpcWindow + numHalfSpace * mpcWindow +numObs*mpcWindow);
+	primalVariable.setZero(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow);
+	for (int i=0;i<mpcWindow+1;i++){
+		if (not this->firstTime_){
+			primalVariable.block(numStates2D*i,0,numStates2D,1) = this->currentStatesSol2D_[i];
+		}
+		else{
+			Eigen::VectorXd stateGuess;
+			stateGuess.setZero(numStates2D);
+			primalVariable.block(numStates2D*i,0,numStates2D,1) = stateGuess;
+		}
+	}
+	for(int i=0;i<mpcWindow;i++){
+		if (not this->firstTime_){
+			primalVariable.block(numStates2D*(mpcWindow+1)+numControls2D*i, 0, numControls2D, 1) = this->currentControlsSol2D_[i];
+		}
+		else{
+			Eigen::VectorXd controlGuess;
+			controlGuess.setZero(numControls2D);
+			primalVariable.block(numStates2D*(mpcWindow+1)+numControls2D*i, 0, numControls2D, 1) = controlGuess;
+		}
+	}
+	solver.setWarmStart(primalVariable, dualVariable);
+	// }
+	// solve the QP problem
+	if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
+		return 0;
+
+	// if (solver.workspace()->info->solve_time>0.015){
+	// 	return 0;
+	// }
+
+	QPSolution = solver.getSolution();	
+	solver.clearSolver();
+	controlsSol.clear();
+	statesSol.clear();			
+	for (int i=0;i<mpcWindow+1;i++){
+			state = QPSolution.block(numStates2D*i, 0, numStates2D, 1);
+			statesSol.push_back(state);
+			// cout<<"state "<<state.transpose()<<endl;
+		}
+	for (int i=0;i<mpcWindow;i++){
+			control = QPSolution.block(numStates2D*(mpcWindow+1)+numControls2D*i, 0, numControls2D, 1);
+			controlsSol.push_back(control);
+			// cout<<"control "<<control.transpose()<<endl;
+		}
+	
+
+	// this->firstTime_ = false;
+    return 1;
+}
+
 	bool mpcPlanner::makePlan(){
+		cout<<"make plan called"<<endl;
+		if (not this->planInZ_){
+			cout<<"plan in 2d mode"<<endl;
+			bool successSolve = this->makePlan2D();
+			cout<<"plan 2d "<<successSolve<<endl;
+			return successSolve;
+		}
 		if (this->firstTime_){
 			this->currentStatesSol_.clear();
 			this->currentControlsSol_.clear();
@@ -480,13 +645,51 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			dynamicObstaclesSize.clear();
 		}
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRef;
-		this->getXRef(xRef);
+		bool refReady = false;
+		refReady = this->getXRef(xRef);
+		if (not refReady){
+			cout<<"no reference trajectory available!!!!!"<<endl;
+			return false;
+		}
 		bool successSolve = this->solveTraj(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol, currentControlsSol, xRef);
 		if (successSolve){
 			this->currentStatesSol_ = currentStatesSol;
 			this->currentControlsSol_ = currentControlsSol;
 			this->firstTime_ = false;
 			this->ref_ = xRef;
+		}
+		return successSolve;
+	}
+
+	bool mpcPlanner::makePlan2D(){
+		if (this->firstTime_){
+			this->currentStatesSol2D_.clear();
+			this->currentControlsSol2D_.clear();
+			this->ref2D_.clear();
+		}
+		std::vector<Eigen::VectorXd> currentStatesSol2D;
+		std::vector<Eigen::VectorXd> currentControlsSol2D;
+		std::vector<staticObstacle> staticObstacles = this->obclustering_->getStaticObstacles();
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesPos = this->dynamicObstaclesPos_;
+		std::vector<std::vector<Eigen::Vector3d>> dynamicObstaclesSize = this->dynamicObstaclesSize_;
+		if(this->firstTime_){
+			staticObstacles.clear();
+			dynamicObstaclesPos.clear();
+			dynamicObstaclesSize.clear();
+		}
+		std::vector<Eigen::Matrix<double, numStates2D, 1>> xRef;
+		bool refReady = false;
+		refReady = this->getXRef2D(xRef);
+		if (not refReady){
+			cout<<"no reference trajectory available!!!!!"<<endl;
+			return false;
+		}
+		bool successSolve = this->solveTraj2D(staticObstacles, dynamicObstaclesPos, dynamicObstaclesSize, currentStatesSol2D, currentControlsSol2D, xRef);
+		if (successSolve){
+			this->currentStatesSol2D_ = currentStatesSol2D;
+			this->currentControlsSol2D_ = currentControlsSol2D;
+			this->firstTime_ = false;
+			this->ref2D_ = xRef;
 		}
 		return successSolve;
 	}
@@ -866,9 +1069,12 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		}
 	}
 
-	void mpcPlanner::getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef){
+	bool mpcPlanner::getXRef(std::vector<Eigen::Matrix<double, numStates, 1>>& xRef){
 		std::vector<Eigen::Vector3d> referenceTraj;
 		this->getReferenceTraj(referenceTraj);
+		if (referenceTraj.size() == 0){
+			return false;
+		}
 		std::vector<Eigen::Matrix<double, numStates, 1>> xRefTemp;
 		Eigen::Matrix<double, numStates, 1> ref;
 		ref.setZero();
@@ -879,6 +1085,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 			xRefTemp.push_back(ref);
 		}
 		xRef = xRefTemp;
+		return true;
 	}
 
 
@@ -1046,6 +1253,258 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		upperBound << upperEquality, upperInequality, upperObstacle;
 	}
 
+	void mpcPlanner::setTakeOffHeight(const double &takeOffHeight){
+		this->takeOffHeight_ = takeOffHeight;
+	}
+
+	void mpcPlanner::setDynamicsMatrices2D(Eigen::Matrix<double, numStates2D, numStates2D> &A, Eigen::Matrix<double, numStates2D, numControls2D> &B){
+		A.setZero();
+		A.block(0, 0, 2, 2) = Eigen::Matrix2d::Identity();
+		A.block(0, 2, 2, 2) = Eigen::Matrix2d::Identity() * this->ts_;
+		A.block(2, 2, 2, 2) = Eigen::Matrix2d::Identity();
+
+		B.setZero();
+		B.block(0, 0, 2, 2) = Eigen::Matrix2d::Identity() * 1/2 * pow(this->ts_, 2);
+		B.block(2, 0, 2, 2) = Eigen::Matrix2d::Identity() * this->ts_;
+		B.block(4, 2, 2, 2) = Eigen::Matrix2d::Identity();
+	}
+
+
+	void mpcPlanner::setInequalityConstraints2D(Eigen::Matrix<double, numStates2D, 1> &xMax, Eigen::Matrix<double, numStates2D, 1> &xMin,
+								Eigen::Matrix<double, numControls2D, 1> &uMax, Eigen::Matrix<double, numControls2D, 1> &uMin){
+		// state bound
+		xMin <<  -INFINITY, -INFINITY, -this->maxVel_, -this->maxVel_, -INFINITY, -INFINITY;
+		xMax << INFINITY, INFINITY, this->maxVel_, this->maxVel_, INFINITY, INFINITY;
+
+		// control bound
+		double skslimit = 1.0 - pow((1 - this->staticSlack_), 2);
+		double skdlimit = 1.0 - pow((1 - this->dynamicSlack_), 2);
+		uMin << -this->maxAcc_, -this->maxAcc_, 0.0, 0.0;
+		uMax << this->maxAcc_, this->maxAcc_, skdlimit, skslimit;
+	}
+
+
+
+	void mpcPlanner::setWeightMatrices2D(Eigen::DiagonalMatrix<double,numStates2D> &Q, Eigen::DiagonalMatrix<double,numControls2D> &R){
+		Q.diagonal() << 1000.0, 1000.0, 0, 0, 100.0, 1000.0;
+		R.diagonal() << 10.0, 10.0, 1.0, 1.0;
+	}
+	void mpcPlanner::castMPCToQPHessian2D(const Eigen::DiagonalMatrix<double,numStates2D> &Q, const Eigen::DiagonalMatrix<double,numControls2D> &R, int mpcWindow, Eigen::SparseMatrix<double>& hessianMatrix){
+		hessianMatrix.resize(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow,
+							numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow);
+
+		// populate hessian matrix
+		for (int i = 0; i < numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow; i++){
+			if (i < numStates2D * (mpcWindow + 1)){
+				int posQ = i % numStates2D;
+				float value = Q.diagonal()[posQ];
+				if (value != 0)
+					hessianMatrix.insert(i, i) = value;
+			} 
+			else{
+				int posR = i % numControls2D;
+				float value = R.diagonal()[posR];
+				if (value != 0)
+					hessianMatrix.insert(i, i) = value;
+			}
+		}
+	}
+	void mpcPlanner::castMPCToQPGradient2D(const Eigen::DiagonalMatrix<double,numStates2D> &Q, const std::vector<Eigen::Matrix<double, numStates2D, 1>>& xRef, int mpcWindow, Eigen::VectorXd& gradient){
+		std::vector<Eigen::Matrix<double, numStates2D, 1>> Qx_ref;
+		for (int i = 0; i < xRef.size(); i++){
+			Eigen::Matrix<double, numStates2D, 1> ref = Q * (-xRef[i]);
+			Qx_ref.push_back(ref);
+		}
+		// populate the gradient vector
+		gradient = Eigen::VectorXd::Zero(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow, 1);
+		for (int i = 0; i < (mpcWindow + 1); i++){
+			for (int j = 0; j < numStates2D; j++){
+				double value = Qx_ref[i](j, 0);
+				gradient(i*numStates2D+j, 0) = value;
+			}
+		}
+	}
+
+	bool mpcPlanner::getXRef2D(std::vector<Eigen::Matrix<double, numStates2D, 1>>& xRef){
+		std::vector<Eigen::Vector3d> referenceTraj;
+		this->getReferenceTraj(referenceTraj);
+		if (referenceTraj.size() ==0){
+			return false;
+		}
+		std::vector<Eigen::Matrix<double, numStates2D, 1>> xRefTemp;
+		Eigen::Matrix<double, numStates2D, 1> ref;
+		ref.setZero();
+		for (int i = 0; i<referenceTraj.size(); ++i){
+			ref(0,0) = referenceTraj[i](0);
+			ref(1,0) = referenceTraj[i](1);
+			
+			xRefTemp.push_back(ref);
+		}
+		xRef = xRefTemp;
+		return true;
+	}
+
+
+	void mpcPlanner::castMPCToQPConstraintMatrix2D(Eigen::Matrix<double, numStates2D, numStates2D> &A, Eigen::Matrix<double, numStates2D, numControls2D> &B, 
+		Eigen::SparseMatrix<double> &constraintMatrix, int numObs, int mpcWindow, 
+		std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
+		std::vector<std::vector<int>> &isDyamic){
+		int numHalfSpace = this->numHalfSpace_;
+		constraintMatrix.resize(numStates2D * (mpcWindow+1) + numStates2D * (mpcWindow+1) + numControls2D * mpcWindow  + numHalfSpace * mpcWindow + numObs * mpcWindow,
+								numStates2D * (mpcWindow+1) + numControls2D * mpcWindow);
+		
+		// populate linear constraint matrix
+		//equality
+		for (int i = 0; i < numStates2D * (mpcWindow + 1); i++)
+		{
+			constraintMatrix.insert(i, i) = -1;
+		}
+
+		for (int i = 0; i < mpcWindow; i++)
+			for (int j = 0; j < numStates2D; j++)
+				for (int k = 0; k < numStates2D; k++)
+				{
+					float value = A(j, k);
+					if (value != 0)
+					{
+						constraintMatrix.insert(numStates2D * (i + 1) + j, numStates2D * i + k) = value;
+					}
+				}
+
+		for (int i = 0; i < mpcWindow; i++)
+			for (int j = 0; j < numStates2D; j++)
+				for (int k = 0; k < numControls2D; k++)
+				{
+					float value = B(j, k);
+					if (value != 0)
+					{
+						constraintMatrix.insert(numStates2D * (i + 1) + j, numControls2D * i + k + numStates2D * (mpcWindow + 1))
+							= value;
+					}
+				}
+
+		//inequality
+		for (int i = 0; i < numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow; i++)
+		{
+			constraintMatrix.insert(i + (mpcWindow + 1) * numStates2D, i) = 1;
+		}
+		if (this->numHalfSpace_){
+			for (int i=0; i < mpcWindow; i++){
+				// for (int j=0;j < numHalfSpace; j++){
+					constraintMatrix.insert(numHalfSpace * i + 0 + numStates2D * (mpcWindow + 1) + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow, numStates2D * i + 0) = this->halfMax_(0);
+					constraintMatrix.insert(numHalfSpace * i + 0 + numStates2D * (mpcWindow + 1) + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow, numStates2D * i + 1) = this->halfMax_(1);
+					constraintMatrix.insert(numHalfSpace * i + 1 + numStates2D * (mpcWindow + 1) + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow, numStates2D * i + 0) = this->halfMin_(0);
+					constraintMatrix.insert(numHalfSpace * i + 1 + numStates2D * (mpcWindow + 1) + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow, numStates2D * i + 1) = this->halfMin_(1);
+				
+				// }
+
+			}
+		}
+
+		for (int i = 0; i < mpcWindow; i++){
+			double cx, cy;
+			if (this->currentStatesSol2D_.size()!=0){
+				cx = this->currentStatesSol2D_[i](0);
+				cy = this->currentStatesSol2D_[i](1);
+			}
+			else{
+				cx = this->currPos_(0);
+				cy = this->currPos_(1);
+			}
+			for (int j = 0; j < numObs; j++){
+				double fxx,fyy;
+				// fxyz = pow((cx-oxyz(j,0))*cos(yaw(j,0))+(cy-oxyz(j,1))*sin(yaw(j,0)), 2)/pow(osize(j,0),2) + pow(-(cx-oxyz(j,0))*sin(yaw(j,0))+(cy-oxyz(j,1))*cos(yaw(j,0)), 2)/pow(osize(j,1),2) + pow((cz-oxyz(j,2)), 2)/pow(osize(j,2),2);
+				fxx = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*cos(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(-sin(yaw[i](j,0)));
+				fyy = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*sin(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(cos(yaw[i](j,0)));
+				// fzz = 2*((cz-oxyz[i](j,2)))/pow(osize[i](j,2),2);
+				// fxx = 2*(cx-oxyz(j,0))/pow(osize(j,0),2);
+				// fyy = 2*(cy-oxyz(j,1))/pow(osize(j,1),2);
+				// fzz = 2*(cz-oxyz(j,2))/pow(osize(j,2),2);
+				constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates2D + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, numStates2D*i) = fxx;//x 
+				constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates2D + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, numStates2D*i+1) = fyy;//y 
+				// constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates2D + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, numStates2D*i+2) = fzz;//z 	
+				if (isDyamic[i][j]){
+					constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates2D + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, numStates2D * (mpcWindow + 1) + numControls2D*i + 3) = -1;
+				}
+				else{
+					constraintMatrix.insert(i*numObs+j + (mpcWindow + 1) * numStates2D + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, numStates2D * (mpcWindow + 1) + numControls2D*i + 4) = -1;
+				}
+			}
+		}
+	}
+
+	void mpcPlanner::castMPCToQPConstraintVectors2D(Eigen::Matrix<double,numStates2D,1> &xMax, Eigen::Matrix<double,numStates2D,1> &xMin,
+		Eigen::Matrix<double,numControls2D,1> &uMax, Eigen::Matrix<double,numControls2D,1> &uMin,
+		const Eigen::Matrix<double, numStates2D, 1>& x0, Eigen::Matrix<double, Eigen::Dynamic, 1> &lowerBound, Eigen::Matrix<double, Eigen::Dynamic, 1> &upperBound, 
+		int numObs, int mpcWindow, 
+		std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw){
+
+		// evaluate the lower and the upper equality vectors
+		int numHalfSpace = this->numHalfSpace_;
+		Eigen::VectorXd lowerEquality = Eigen::MatrixXd::Zero(numStates2D * (mpcWindow + 1), 1);
+		Eigen::VectorXd upperEquality;
+		lowerEquality.block(0, 0, numStates2D, 1) = -x0;
+		upperEquality = lowerEquality;
+		lowerEquality = lowerEquality;
+
+		Eigen::VectorXd lowerInequality
+			= Eigen::MatrixXd::Zero(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, 1);
+		Eigen::VectorXd upperInequality
+			= Eigen::MatrixXd::Zero(numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow, 1);
+		for (int i = 0; i < mpcWindow + 1; i++)
+		{
+			lowerInequality.block(numStates2D * i, 0, numStates2D, 1) = xMin;
+			upperInequality.block(numStates2D * i, 0, numStates2D, 1) = xMax;
+		}
+		for (int i = 0; i < mpcWindow; i++)
+		{
+			lowerInequality.block(numControls2D * i + numStates2D * (mpcWindow + 1), 0, numControls2D, 1) = uMin;
+			upperInequality.block(numControls2D * i + numStates2D * (mpcWindow + 1), 0, numControls2D, 1) = uMax;
+		}
+		if (this->numHalfSpace_){
+			for (int i=0; i < mpcWindow; i++){
+				// for (int j=0;j < numHalfSpace; j++){
+					lowerInequality(numHalfSpace * i + 0 + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow) = -INFINITY;
+					upperInequality(numHalfSpace * i + 0 + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow) = this->halfMax_(2);
+					lowerInequality(numHalfSpace * i + 1 + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow) = this->halfMin_(2);
+					upperInequality(numHalfSpace * i + 1 + numStates2D * (mpcWindow + 1) + numControls2D * mpcWindow) = INFINITY;
+				// }
+			}
+		}
+
+
+		Eigen::VectorXd lowerObstacle
+			= Eigen::MatrixXd::Zero(numObs * mpcWindow, 1);
+		Eigen::VectorXd upperObstacle
+			= Eigen::MatrixXd::Ones(numObs * mpcWindow, 1)*INFINITY;
+			// Zero(numObs * mpcWindow, 1);
+		for (int i = 0; i < mpcWindow; i++){
+			double cx, cy;
+			if (this->currentStatesSol2D_.size()!=0){
+				cx = this->currentStatesSol2D_[i](0);
+				cy = this->currentStatesSol2D_[i](1);
+			}
+			else{
+				cx = this->currPos_(0);
+				cy = this->currPos_(1);
+			}
+			for (int j = 0; j < numObs; j++){
+				double fxy,fxx,fyy;
+				fxy = pow((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)), 2)/pow(osize[i](j,0),2) + pow(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)), 2)/pow(osize[i](j,1),2);
+				fxx = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*cos(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(-sin(yaw[i](j,0)));
+				fyy = 2*((cx-oxyz[i](j,0))*cos(yaw[i](j,0))+(cy-oxyz[i](j,1))*sin(yaw[i](j,0)))/pow(osize[i](j,0),2)*sin(yaw[i](j,0))+ 2*(-(cx-oxyz[i](j,0))*sin(yaw[i](j,0))+(cy-oxyz[i](j,1))*cos(yaw[i](j,0)))/pow(osize[i](j,1),2)*(cos(yaw[i](j,0)));
+				lowerObstacle(i*numObs+j) = 1 - fxy + fxx * cx + fyy * cy;
+			}
+		}
+		
+		lowerBound.resize(numStates2D * (mpcWindow+1) + numStates2D * (mpcWindow+1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow + numObs * mpcWindow, 1);
+		upperBound.resize(numStates2D * (mpcWindow+1) + numStates2D * (mpcWindow+1) + numControls2D * mpcWindow + numHalfSpace * mpcWindow + numObs * mpcWindow, 1);
+
+		lowerBound << lowerEquality, lowerInequality, lowerObstacle;
+		upperBound << upperEquality, upperInequality, upperObstacle;
+	}
+
+
 	void mpcPlanner::updateObstacleParam(const std::vector<staticObstacle> &staticObstacles, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesPos, const std::vector<std::vector<Eigen::Vector3d>> &dynamicObstaclesSize, int &numObs, int mpcWindow, 
 		std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &oxyz, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 3>> &osize, std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> &yaw, 
 		std::vector<std::vector<int>> &isDyamic){
@@ -1125,11 +1584,23 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 
 	void mpcPlanner::getTrajectory(std::vector<Eigen::Vector3d>& traj){
 		traj.clear();
+		if (this->planInZ_){
 		for (int i=0; i<this->currentStatesSol_.size(); ++i){
 			// DVector states = this->currentStatesSol_.getVector(i);
 			Eigen::VectorXd states = this->currentStatesSol_[i];
 			Eigen::Vector3d p (states(0), states(1), states(2));
 			traj.push_back(p);
+		}
+		}
+		else{
+			// cout<<"get traj 2d"<<this->currentStatesSol2D_.size()<<endl;
+			for (int i=0; i<this->currentStatesSol2D_.size(); ++i){
+				// DVector states = this->currentStatesSol_.getVector(i);
+				Eigen::VectorXd states = this->currentStatesSol2D_[i];
+				// TODO: set z
+				Eigen::Vector3d p (states(0), states(1), this->takeOffHeight_);
+				traj.push_back(p);
+			}
 		}
 	}
 
@@ -1154,6 +1625,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
+		if (this->planInZ_){
 		Eigen::VectorXd states = this->currentStatesSol_[idx];
 		Eigen::VectorXd nextStates = this->currentStatesSol_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d p;
@@ -1161,6 +1633,17 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		p(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
 		p(2) = states(2)+(nextStates(2)-states(2))/this->ts_*dt;
 		return p;
+		}
+		else{
+			Eigen::VectorXd states = this->currentStatesSol2D_[idx];
+			Eigen::VectorXd nextStates = this->currentStatesSol2D_[std::min(idx+1, this->horizon_-1)];
+			Eigen::Vector3d p;
+			p(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
+			p(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
+			// TODO: set z
+			p(2) = this->takeOffHeight_;
+			return p;
+		}
 	}
 
 	Eigen::Vector3d mpcPlanner::getVel(double t){
@@ -1171,6 +1654,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
+		if (this->planInZ_){
 		Eigen::VectorXd states = this->currentStatesSol_[idx];
 		Eigen::VectorXd nextStates = this->currentStatesSol_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d v;
@@ -1178,6 +1662,16 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		v(1) = states(4)+(nextStates(4)-states(4))/this->ts_*dt;
 		v(2) = states(5)+(nextStates(5)-states(5))/this->ts_*dt;
 		return v;
+		}
+		else{
+			Eigen::VectorXd states = this->currentStatesSol2D_[idx];
+			Eigen::VectorXd nextStates = this->currentStatesSol2D_[std::min(idx+1, this->horizon_-1)];
+			Eigen::Vector3d v;
+			v(0) = states(2)+(nextStates(2)-states(2))/this->ts_*dt;
+			v(1) = states(3)+(nextStates(3)-states(3))/this->ts_*dt;
+			v(2) = 0.0;
+			return v;
+		}
 	}
 
 	Eigen::Vector3d mpcPlanner::getAcc(double t){
@@ -1188,6 +1682,7 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-2));
+		if (this->planInZ_){
 		Eigen::VectorXd states = this->currentControlsSol_[idx];
 		Eigen::VectorXd nextStates = this->currentControlsSol_[std::min(idx+1, this->horizon_-2)];
 		Eigen::Vector3d a;
@@ -1195,12 +1690,23 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		a(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
 		a(2) = states(2)+(nextStates(2)-states(2))/this->ts_*dt;
 		return a;
+		}
+		else{
+			Eigen::VectorXd states = this->currentControlsSol2D_[idx];
+			Eigen::VectorXd nextStates = this->currentControlsSol2D_[std::min(idx+1, this->horizon_-2)];
+			Eigen::Vector3d a;
+			a(0) = states(0)+(nextStates(0)-states(0))/this->ts_*dt;
+			a(1) = states(1)+(nextStates(1)-states(1))/this->ts_*dt;
+			a(2) = 0.0;
+			return a;
+		}
 	}
 
 	Eigen::Vector3d mpcPlanner::getRef(double t){
 		int idx = floor(t/this->ts_);
 		double dt = t-idx*this->ts_;
 		idx = std::max(0, std::min(idx, this->horizon_-1));
+		if (this->planInZ_){
 		Eigen::MatrixXd states = this->ref_[idx];
 		Eigen::MatrixXd nextStates = this->ref_[std::min(idx+1, this->horizon_-1)];
 		Eigen::Vector3d r;
@@ -1208,6 +1714,16 @@ bool mpcPlanner::solveTraj(const std::vector<staticObstacle> &staticObstacles, c
 		r(1) = states(1,0)+(nextStates(1,0)-states(1,0))/this->ts_*dt;
 		r(2) = states(2,0)+(nextStates(2,0)-states(2,0))/this->ts_*dt;
 		return r;
+		}
+		else{
+			Eigen::MatrixXd states = this->ref2D_[idx];
+			Eigen::MatrixXd nextStates = this->ref2D_[std::min(idx+1, this->horizon_-1)];
+			Eigen::Vector3d r;
+			r(0) = states(0,0)+(nextStates(0,0)-states(0,0))/this->ts_*dt;
+			r(1) = states(1,0)+(nextStates(1,0)-states(1,0))/this->ts_*dt;
+			r(2) = this->takeOffHeight_;
+			return r;
+		}
 	}
 
 	double mpcPlanner::getTs(){
