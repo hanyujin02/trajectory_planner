@@ -1,4 +1,5 @@
 horizon: 30
+plan_in_z: true
 z_range_min: 0.9
 z_range_max: 1.2
 static_safety_dist: 0.8
